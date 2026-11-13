@@ -62,6 +62,7 @@
     border: 2px solid var(--marca-borde); border-radius: 12px;
     background: var(--marca-suave) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'%3E%3Cpath d='M10 2a8 8 0 0 1 6.32 12.9l5.39 5.4-1.41 1.4-5.4-5.39A8 8 0 1 1 10 2zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12z'/%3E%3C/svg%3E") no-repeat 12px center / 18px;
   }
+  .buscar[hidden] { display: none; }
   .buscar:focus { outline: none; border-color: var(--marca); background-color: var(--blanco); }
 
   /* Pestañas de categoría */
@@ -107,6 +108,7 @@
   .nombre { font-weight: 800; font-size: 16px; text-transform: uppercase; letter-spacing: .3px; }
   .desc { color: var(--marca); opacity: .85; font-size: 13.5px; margin-top: 2px; }
   .precio { font-weight: 800; font-size: 14px; margin-top: 4px; }
+  .precio s { color: var(--gris); font-weight: 500; font-size: 13px; margin-left: 6px; }  /* precio anterior en oferta */
 
   /* Círculo de selección (como un radio) */
   .check {
@@ -226,10 +228,10 @@
 
   <!-- ===================== DATOS OPCIONALES ===================== -->
   <label class="campo" for="nombre">¿A nombre de quién? <i>(opcional)</i></label>
-  <input class="campo-input" id="nombre" type="text" placeholder="Ej: Ana — Empresa XYZ" autocomplete="name">
+  <input class="campo-input" id="nombre" type="text" placeholder="Ej: Ana Pérez" autocomplete="name">
 
   <label class="campo" for="notas">¿Alguna nota especial? <i>(opcional)</i></label>
-  <textarea class="campo-input" id="notas" rows="2" placeholder="Ej: entrega en oficina, lo necesito para el lunes…"></textarea>
+  <textarea class="campo-input" id="notas" rows="2" placeholder="Ej: color, dirección de entrega, lo necesito para el sábado…"></textarea>
 
   <!-- ===================== TOTAL + ENVÍO ===================== -->
   <div class="resumen-total" id="resumenTotal" hidden>
@@ -258,7 +260,7 @@ const CONFIG = {
   whatsapp: '573045621589',   // +57 304 562 1589
   moneda: 'COP',
   idioma: 'es-CO',
-  claveStorage: 'inizitech_pedido_v2'
+  claveStorage: 'inizitech_pedido_v3'
 };
 
 /* =========================================================
@@ -268,16 +270,13 @@ const CONFIG = {
    - top: true marca el producto como "Más pedido".
    ========================================================= */
 const PRODUCTOS = [
-  { id: 'p01', nombre: 'Laptop empresarial', desc: 'Core i5, 16 GB RAM, SSD 512 GB. Lista para trabajar.', precio: 2899000, categoria: 'Equipos', top: true },
-  { id: 'p02', nombre: 'Monitor 24"', desc: 'Full HD IPS, ideal para doble pantalla.', precio: 549000, categoria: 'Equipos' },
-  { id: 'p03', nombre: 'Mini PC', desc: 'Compacto y silencioso para recepción u oficina.', precio: 1490000, categoria: 'Equipos' },
-  { id: 'p04', nombre: 'Kit teclado + mouse', desc: 'Inalámbrico, un solo receptor USB.', precio: 129000, categoria: 'Accesorios' },
-  { id: 'p05', nombre: 'Diadema con micrófono', desc: 'Cancelación de ruido para llamadas.', precio: 159000, categoria: 'Accesorios' },
-  { id: 'p06', nombre: 'Cámara web 1080p', desc: 'Con micrófono integrado y tapa de privacidad.', precio: 169000, categoria: 'Accesorios' },
-  { id: 'p07', nombre: 'Router Wi-Fi 6', desc: 'Cobertura amplia para oficinas pequeñas.', precio: 349000, categoria: 'Redes' },
-  { id: 'p08', nombre: 'Cable de red Cat6', desc: 'Precio por metro.', precio: 3500, categoria: 'Redes' },
-  { id: 'p09', nombre: 'Soporte técnico', desc: 'Visita o remoto, por hora.', precio: 90000, categoria: 'Servicios' },
-  { id: 'p10', nombre: 'Licencia antivirus', desc: '1 equipo, 1 año de protección.', precio: 119000, categoria: 'Servicios' }
+  // Catálogo tomado de la tienda web de Inizi Tech (precios en COP).
+  // "antes": precio anterior tachado cuando el producto está en oferta.
+  { id: 'airpods-pro',   nombre: 'AirPods Pro',          desc: 'Cancelación de ruido, graves profundos y batería de larga duración.', precio: 80000, antes: 100000, categoria: 'Audio', top: true },
+  { id: 'airpods-pro-2', nombre: 'AirPods Pro 2',        desc: '', precio: 80000, antes: 100000, categoria: 'Audio' },
+  { id: 'watch-ultra-8', nombre: 'Watch Ultra 8',        desc: '', precio: 65000, categoria: 'Relojes' },
+  { id: 'cargador-20w',  nombre: 'Cargador 20W-25W',     desc: 'Carga rápida para iPhone: carga completa en 1 hora.', precio: 60000, categoria: 'Cargadores' },
+  { id: 'fundas',        nombre: 'Fundas para celular',  desc: '', precio: 20000, categoria: 'Accesorios' }
 ];
 
 /* =========================================================
@@ -329,7 +328,7 @@ function htmlProducto(p) {
     <div>
       <div class="nombre">${p.nombre}</div>
       ${p.desc ? `<div class="desc">${p.desc}</div>` : ''}
-      <div class="precio">${dinero(p.precio)}</div>
+      <div class="precio">${dinero(p.precio)}${p.antes ? ` <s>${dinero(p.antes)}</s>` : ''}</div>
     </div>
     <div class="check">${cant ? '✓' : ''}</div>
     <div class="cantidad">
@@ -476,6 +475,8 @@ $('#nombre').addEventListener('input', guardar);
 /* =========================================================
    INICIO
    ========================================================= */
+// Con pocos productos el buscador sobra: se oculta para ir directo a elegir
+if (PRODUCTOS.length < 8) $('#buscar').hidden = true;
 cargar();
 renderCategorias();
 renderLista();
