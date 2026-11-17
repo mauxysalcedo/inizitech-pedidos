@@ -274,47 +274,39 @@
   <!-- Formulario de Netlify: las respuestas se guardan en el panel de Netlify (Forms). -->
   <section class="registro" id="registro">
     <h2>¿Ya nos compraste? Déjanos tus datos</h2>
-    <p>Así te avisamos de promociones y recibes un <b>10% de descuento</b> en tu próxima compra.</p>
+    <p>Regístrate para recibir novedades y promociones.</p>
 
     <form id="formRegistro" name="registro" method="POST" data-netlify="true" netlify-honeypot="website" novalidate>
       <input type="hidden" name="form-name" value="registro">
       <p class="trampa"><label>No llenes este campo: <input name="website" tabindex="-1" autocomplete="off"></label></p>
 
-      <label class="campo" for="rNombre">Nombre <i>(obligatorio)</i></label>
+      <label class="campo" for="rNombre">Nombre</label>
       <input class="campo-input" id="rNombre" name="nombre" type="text" required autocomplete="name" placeholder="Ej: Camila Rodríguez">
 
-      <label class="campo" for="rCelular">Celular <i>(obligatorio)</i></label>
+      <label class="campo" for="rCelular">Celular</label>
       <input class="campo-input" id="rCelular" name="celular" type="tel" inputmode="tel" required autocomplete="tel" placeholder="Ej: 304 562 1589">
 
-      <div class="fila-doble">
-        <div>
-          <label class="campo" for="rMunicipio">Municipio <i>(obligatorio)</i></label>
-          <input class="campo-input" id="rMunicipio" name="municipio" type="text" required placeholder="Ej: Santo Tomás">
-        </div>
-        <div>
-          <label class="campo" for="rBarrio">Barrio <i>(obligatorio)</i></label>
-          <input class="campo-input" id="rBarrio" name="barrio" type="text" required placeholder="Ej: Centro">
-        </div>
-      </div>
+      <label class="campo" for="rMunicipio">Municipio</label>
+      <input class="campo-input" id="rMunicipio" name="municipio" type="text" required placeholder="Ej: Santo Tomás">
 
-      <label class="campo" for="rEmail">Correo <i>(opcional — para descuentos exclusivos)</i></label>
+      <label class="campo" for="rCumple">Fecha de cumpleaños</label>
+      <input class="campo-input" id="rCumple" name="fecha_nacimiento" type="date" required>
+
+      <label class="campo" for="rEmail">Correo</label>
       <input class="campo-input" id="rEmail" name="email" type="email" autocomplete="email" placeholder="tu@correo.com">
 
-      <label class="campo" for="rCumple">Fecha de cumpleaños <i>(opcional — te enviamos un regalo ese día)</i></label>
-      <input class="campo-input" id="rCumple" name="fecha_nacimiento" type="date">
-
-      <label class="campo" for="rIntereses">¿Qué te interesa? <i>(opcional)</i></label>
-      <input class="campo-input" id="rIntereses" name="intereses" type="text" placeholder="Ej: AirPods, relojes, cargadores">
+      <label class="campo" for="rCompraste">¿Qué compraste?</label>
+      <input class="campo-input" id="rCompraste" name="que_compraste" type="text" placeholder="Ej: 2 AirPods Pro, un cargador">
 
       <label class="autoriza">
         <input type="checkbox" id="rAutoriza" name="autoriza" required>
         <span>Autorizo el tratamiento de mis datos personales según la <a href="politica-privacidad.html" target="_blank" rel="noopener">política de privacidad</a> (Ley 1581 de 2012).</span>
       </label>
 
-      <button class="btn-registro" id="btnRegistro" type="submit">Quiero mi 10%</button>
+      <button class="btn-registro" id="btnRegistro" type="submit">Enviar</button>
       <div class="registro-ok" id="registroOk" hidden>
-        ¡Listo, gracias por registrarte!
-        <span>Tu código de descuento es <b>INIZI10</b>. Dilo al pedir por WhatsApp.</span>
+        ¡Listo, gracias!
+        <span>Te escribimos por WhatsApp para confirmar tu compra.</span>
       </div>
     </form>
   </section>
@@ -563,7 +555,6 @@ if (PRODUCTOS.length < 8) $('#buscar').hidden = true;
 // ---- Formulario "Déjanos tus datos" ----
 // Se envía a Netlify Forms sin recargar la página. Valida lo básico antes de enviar.
 const formRegistro = $('#formRegistro');
-const celularValido = (t) => normalizarCelular(t) !== null;
 function normalizarCelular(t) {
   const d = String(t || '').replace(/\D/g, '');
   if (/^3\d{9}$/.test(d)) return d;
@@ -573,12 +564,12 @@ function normalizarCelular(t) {
 formRegistro.addEventListener('submit', async (e) => {
   e.preventDefault();
   const datos = new FormData(formRegistro);
-  const aviso2 = (m) => aviso(m);
-  if (!String(datos.get('nombre') || '').trim()) return aviso2('Escribe tu nombre');
-  if (!celularValido(datos.get('celular'))) return aviso2('Celular colombiano de 10 dígitos');
-  if (!String(datos.get('municipio') || '').trim() || !String(datos.get('barrio') || '').trim()) return aviso2('Escribe tu municipio y barrio');
-  if (!$('#rAutoriza').checked) return aviso2('Debes autorizar el tratamiento de datos');
-  if (datos.get('website')) return; // campo trampa lleno: descartar en silencio
+  if (datos.get('website')) return;                 // campo trampa lleno: descartar en silencio
+  if (!String(datos.get('nombre') || '').trim()) return aviso('Escribe tu nombre');
+  if (!normalizarCelular(datos.get('celular'))) return aviso('Celular colombiano de 10 dígitos');
+  if (!String(datos.get('municipio') || '').trim()) return aviso('Escribe tu municipio');
+  if (!datos.get('fecha_nacimiento')) return aviso('Escribe tu fecha de cumpleaños');
+  if (!$('#rAutoriza').checked) return aviso('Debes autorizar el tratamiento de datos');
 
   const boton = $('#btnRegistro');
   boton.disabled = true; boton.textContent = 'Enviando…';
@@ -593,7 +584,7 @@ formRegistro.addEventListener('submit', async (e) => {
     boton.style.display = 'none';
   } catch (err) {
     aviso('No se pudo enviar. Intenta de nuevo.');
-    boton.disabled = false; boton.textContent = 'Quiero mi 10%';
+    boton.disabled = false; boton.textContent = 'Enviar';
   }
 });
 
