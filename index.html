@@ -317,7 +317,7 @@ const CONFIG = {
   // Si se deja vacío, WhatsApp pedirá elegir el contacto.
   whatsapp: '573045621589',   // +57 304 562 1589
   // Costo del domicilio por municipio (COP). "Otro municipio" se confirma por WhatsApp.
-  domicilios: { 'Santo Tomás': 2000, 'Palmar': 3000, 'Sabana Grande': 4000 },
+  domicilios: { 'Santo Tomás, Atlántico': 2000, 'Palmar de Varela, Atlántico': 3000, 'Sabana Grande, Atlántico': 4000 },
   moneda: 'COP',
   idioma: 'es-CO',
   claveStorage: 'inizitech_pedido_v3'
@@ -552,7 +552,7 @@ function normalizarCelular(t) {
 function llenarMunicipios() {
   const sel = $('#municipio');
   Object.keys(CONFIG.domicilios).forEach(m => sel.insertAdjacentHTML('beforeend', `<option>${m}</option>`));
-  sel.insertAdjacentHTML('beforeend', '<option value="Otro">Otro municipio</option>');
+  sel.insertAdjacentHTML('beforeend', '<option value="Otro">Otro municipio (lo confirmamos por WhatsApp)</option>');
 }
 // Costo del domicilio: número, o null si se confirma por WhatsApp
 const domicilioDe = (muni) => CONFIG.domicilios[muni] ?? null;
