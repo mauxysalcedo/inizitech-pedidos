@@ -616,9 +616,9 @@ function validarPedido() {
   if (!d.nombre) return falla('nombre', 'Escribe tu nombre');
   if (!normalizarCelular(d.celular)) return falla('celular', 'Celular colombiano de 10 dígitos');
   if (dom && !d.municipio) return falla('municipio', 'Elige tu municipio');
-  if (dom && !d.direccion) return falla('direccion', 'Escribe la dirección de entrega');
   if (!d.fecha_nacimiento) return falla('cumple', 'Escribe tu fecha de cumpleaños');
-  if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) return falla('correo', 'El correo no parece válido');
+  if (!d.email) return falla('correo', 'Escribe tu correo');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) return falla('correo', 'El correo no parece válido');
   if (!d.autoriza) return falla('autoriza', 'Debes autorizar el tratamiento de tus datos');
   return d;
 }
@@ -650,7 +650,7 @@ function textoPedido(d) {
     t += `\nEntrega en: ${zona}`;
   }
   if (d.nombre) t += `\n\nA nombre de: ${d.nombre}`;
-  if (d.entrega === 'domicilio') t += `\nDirección de entrega: ${d.direccion}`;
+  if (d.entrega === 'domicilio') t += `\nDirección de entrega: ${d.direccion || 'por confirmar'}`;
   if (d.notas) t += `\nNota: ${d.notas}`;
   return t;
 }
