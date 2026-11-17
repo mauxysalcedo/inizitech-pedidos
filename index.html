@@ -284,8 +284,8 @@
 
   <label class="campo">¿Cómo lo recibes?</label>
   <div class="entrega" role="radiogroup" aria-label="Forma de entrega">
-    <label><input type="radio" name="entrega" value="domicilio" checked><span>🛵 Domicilio</span></label>
-    <label><input type="radio" name="entrega" value="recoger"><span>🏪 Recoger en tienda</span></label>
+    <label><input type="radio" name="entrega" value="domicilio" checked><span>Domicilio</span></label>
+    <label><input type="radio" name="entrega" value="recoger"><span>Pasar a recoger</span></label>
   </div>
 
   <div id="bloqueDomicilio">
@@ -483,7 +483,7 @@ function renderTotal() {
   const dom = esDomicilio() && muni ? domicilioDe(muni) : null;
   const total = subtotal + (dom || 0);
   const linea = $('#lineaDomicilio');
-  if (!esDomicilio()) { linea.hidden = false; linea.textContent = 'Recoges en tienda: sin costo de domicilio'; }
+  if (!esDomicilio()) { linea.hidden = false; linea.textContent = 'Pasar a recoger: sin costo de domicilio'; }
   else if (!muni) { linea.hidden = true; }
   else {
     linea.hidden = false;
@@ -644,7 +644,7 @@ function textoPedido(d) {
   ls.forEach(({ p, cant, sub }) => { t += `• ${cant} x ${p.nombre} — ${dinero(sub)}\n`; });
   t += `\n*Total: ${dinero(subtotal + (dom || 0))}*`;
   if (d.entrega === 'recoger') {
-    t += `\nEntrega: recoger en tienda`;
+    t += `\nEntrega: pasar a recoger`;
   } else {
     const zona = d.municipio === 'Otro' ? 'otro municipio (domicilio por confirmar)' : d.municipio;
     t += `\nEntrega en: ${zona}`;
