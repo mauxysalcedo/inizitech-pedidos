@@ -154,6 +154,16 @@
     border: 2px solid var(--marca-borde); resize: vertical;
   }
   .campo-input:focus { outline: none; border-color: var(--marca); }
+  /* Selector de fecha más compacto y alineado con los demás campos */
+  input[type="date"].campo-input {
+    -webkit-appearance: none; appearance: none;
+    height: 44px; padding: 0 12px; font-size: 15px; line-height: 44px;
+    display: block; max-width: 100%;
+  }
+  input[type="date"].campo-input::-webkit-calendar-picker-indicator {
+    cursor: pointer; padding: 0; margin-left: 8px; width: 18px; height: 18px; opacity: .7;
+  }
+  input[type="date"].campo-input::-webkit-date-and-time-value { text-align: left; }
 
   .resumen-total {
     display: flex; justify-content: space-between; align-items: baseline;
