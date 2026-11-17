@@ -380,9 +380,9 @@ const PRODUCTOS = [
 /* =========================================================
    ESTADO
    ========================================================= */
-const estado = { categoria: 'Lo más pedido', busqueda: '', carrito: {} };
+const estado = { categoria: 'Lo más pedido', busqueda: '', carrito: {} }; // carrito: { id: cantidad }
 // Orden de las pestañas. 'Lo más pedido' es la vista inicial.
-const CATEGORIAS = ['Lo más pedido', 'Combos', 'Audio', 'Relojes', 'Cargadores', 'Accesorios']; // carrito: { id: cantidad }
+const CATEGORIAS = ['Lo más pedido', 'Combos', 'Audio', 'Relojes', 'Cargadores', 'Accesorios'];
 
 const $ = (s) => document.querySelector(s);
 const porId = Object.fromEntries(PRODUCTOS.map(p => [p.id, p]));
