@@ -160,6 +160,8 @@
     margin: 20px 2px 12px; font-size: 15px;
   }
   .resumen-total[hidden] { display: none; }
+  .linea-domicilio { margin: -6px 2px 12px; font-size: 14px; color: var(--gris); }
+  .linea-domicilio[hidden] { display: none; }
   .resumen-total b { font-size: 24px; }
 
   .btn-whatsapp {
@@ -282,6 +284,7 @@
   <div class="resumen-total" id="resumenTotal" hidden>
     <span id="resumenItems"></span><b id="total"></b>
   </div>
+  <div class="linea-domicilio" id="lineaDomicilio" hidden></div>
 
   <button class="btn-whatsapp" id="btnWhatsapp" disabled>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.04 2a9.9 9.9 0 0 0-8.5 15l-1.5 5 5.2-1.4A9.9 9.9 0 1 0 12.04 2zm0 18.1a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3.1.8.8-3-.2-.3a8.2 8.2 0 1 1 7 3.9zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.6.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.4a.5.5 0 0 0 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.1 5.1 0 0 0 1.1 2.7 11.7 11.7 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .1-1.3c0-.1-.2-.2-.5-.3z"/></svg>
@@ -439,8 +442,20 @@ function lineas() {
 function renderTotal() {
   const ls = lineas();
   const unidades = ls.reduce((s, l) => s + l.cant, 0);
-  const total = ls.reduce((s, l) => s + l.sub, 0);
+  const subtotal = ls.reduce((s, l) => s + l.sub, 0);
   const hay = ls.length > 0;
+  // Domicilio según el municipio elegido (si es "Otro", se confirma por WhatsApp)
+  const muni = $('#municipio').value;
+  const dom = muni ? domicilioDe(muni) : null;
+  const total = subtotal + (dom || 0);
+  const linea = $('#lineaDomicilio');
+  if (!muni) { linea.hidden = true; }
+  else {
+    linea.hidden = false;
+    linea.textContent = dom !== null
+      ? `Domicilio a ${muni}: ${dinero(dom)}`
+      : 'Domicilio: lo confirmamos contigo por WhatsApp';
+  }
 
   $('#resumenTotal').hidden = !hay;
   $('#btnCopiar').hidden = !hay;
@@ -519,6 +534,7 @@ $('#buscar').addEventListener('input', (e) => { estado.busqueda = e.target.value
 $('#btnWhatsapp').addEventListener('click', enviarWhatsapp);
 $('#btnCopiar').addEventListener('click', copiar);
 $('#nombre').addEventListener('input', guardar);
+$('#municipio').addEventListener('change', renderTotal);
 
 /* =========================================================
    INICIO
@@ -583,11 +599,9 @@ function textoPedido(d) {
   const dom = domicilioDe(d.municipio);
   let t = `¡Hola ${CONFIG.negocio}! 👋 Quiero hacer este pedido:\n\n`;
   ls.forEach(({ p, cant, sub }) => { t += `• ${cant} x ${p.nombre} — ${dinero(sub)}\n`; });
-  t += `\nProductos: ${dinero(subtotal)}`;
-  const zona = d.municipio === 'Otro' ? 'otro municipio' : d.municipio;
-  t += dom !== null ? `\nDomicilio (${zona}): ${dinero(dom)}`
-                    : `\nDomicilio (${zona}): lo confirmamos contigo por WhatsApp`;
   t += `\n*Total: ${dinero(subtotal + (dom || 0))}*`;
+  const zona = d.municipio === 'Otro' ? 'otro municipio (domicilio por confirmar)' : d.municipio;
+  t += `\nEntrega en: ${zona}`;
   if (d.nombre) t += `\n\nA nombre de: ${d.nombre}`;
   t += `\nDirección de entrega: ${d.direccion}`;
   if (d.notas) t += `\nNota: ${d.notas}`;
