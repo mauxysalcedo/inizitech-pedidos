@@ -180,6 +180,32 @@
   }
   .btn-copiar[hidden] { display: none; }
 
+  /* Bloque "Déjanos tus datos" (formulario de clientes) */
+  .registro { margin-top: 28px; padding-top: 22px; border-top: 1px dashed var(--marca-borde); }
+  .registro h2 { font-size: 17px; font-weight: 800; }
+  .registro > p { color: var(--gris); font-size: 14px; margin: 4px 0 14px; }
+  .registro .fila-doble { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .registro .campo { margin: 12px 0 0; }
+  .registro .campo-input { margin-top: 5px; }
+  .autoriza { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: 13px; color: var(--marca-oscuro); }
+  .autoriza input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
+  .autoriza a { color: var(--marca); }
+  .btn-registro {
+    width: 100%; min-height: 50px; margin-top: 16px; border-radius: 14px;
+    background: var(--marca); color: var(--blanco); font-weight: 800; font-size: 16px;
+  }
+  .btn-registro:hover { background: var(--marca-oscuro); }
+  .btn-registro:disabled { opacity: .6; cursor: default; }
+  .registro-ok {
+    margin-top: 14px; padding: 14px; border-radius: 12px; background: #e8f8ee;
+    color: #14532d; font-weight: 700; text-align: center;
+  }
+  .registro-ok[hidden] { display: none; }
+  .registro-ok span { display: block; font-weight: 400; font-size: 13px; margin-top: 4px; }
+  /* Campo trampa anti-spam: invisible para las personas */
+  .trampa { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  @media (max-width: 520px) { .registro .fila-doble { grid-template-columns: 1fr; } }
+
   .pie { text-align: center; color: var(--logo-claro); opacity: .8; font-size: 13px; margin-top: 22px; }
   .pie b { color: var(--blanco); letter-spacing: 1px; }
 
@@ -243,6 +269,55 @@
     <span id="textoBoton">Selecciona un producto para pedir</span>
   </button>
   <button class="btn-copiar" id="btnCopiar" hidden>o copia el pedido como texto</button>
+
+  <!-- ===================== DÉJANOS TUS DATOS ===================== -->
+  <!-- Formulario de Netlify: las respuestas se guardan en el panel de Netlify (Forms). -->
+  <section class="registro" id="registro">
+    <h2>¿Ya nos compraste? Déjanos tus datos</h2>
+    <p>Así te avisamos de promociones y recibes un <b>10% de descuento</b> en tu próxima compra.</p>
+
+    <form id="formRegistro" name="registro" method="POST" data-netlify="true" netlify-honeypot="website" novalidate>
+      <input type="hidden" name="form-name" value="registro">
+      <p class="trampa"><label>No llenes este campo: <input name="website" tabindex="-1" autocomplete="off"></label></p>
+
+      <label class="campo" for="rNombre">Nombre <i>(obligatorio)</i></label>
+      <input class="campo-input" id="rNombre" name="nombre" type="text" required autocomplete="name" placeholder="Ej: Camila Rodríguez">
+
+      <label class="campo" for="rCelular">Celular <i>(obligatorio)</i></label>
+      <input class="campo-input" id="rCelular" name="celular" type="tel" inputmode="tel" required autocomplete="tel" placeholder="Ej: 304 562 1589">
+
+      <div class="fila-doble">
+        <div>
+          <label class="campo" for="rMunicipio">Municipio <i>(obligatorio)</i></label>
+          <input class="campo-input" id="rMunicipio" name="municipio" type="text" required placeholder="Ej: Santo Tomás">
+        </div>
+        <div>
+          <label class="campo" for="rBarrio">Barrio <i>(obligatorio)</i></label>
+          <input class="campo-input" id="rBarrio" name="barrio" type="text" required placeholder="Ej: Centro">
+        </div>
+      </div>
+
+      <label class="campo" for="rEmail">Correo <i>(opcional — para descuentos exclusivos)</i></label>
+      <input class="campo-input" id="rEmail" name="email" type="email" autocomplete="email" placeholder="tu@correo.com">
+
+      <label class="campo" for="rCumple">Fecha de cumpleaños <i>(opcional — te enviamos un regalo ese día)</i></label>
+      <input class="campo-input" id="rCumple" name="fecha_nacimiento" type="date">
+
+      <label class="campo" for="rIntereses">¿Qué te interesa? <i>(opcional)</i></label>
+      <input class="campo-input" id="rIntereses" name="intereses" type="text" placeholder="Ej: AirPods, relojes, cargadores">
+
+      <label class="autoriza">
+        <input type="checkbox" id="rAutoriza" name="autoriza" required>
+        <span>Autorizo el tratamiento de mis datos personales según la <a href="politica-privacidad.html" target="_blank" rel="noopener">política de privacidad</a> (Ley 1581 de 2012).</span>
+      </label>
+
+      <button class="btn-registro" id="btnRegistro" type="submit">Quiero mi 10%</button>
+      <div class="registro-ok" id="registroOk" hidden>
+        ¡Listo, gracias por registrarte!
+        <span>Tu código de descuento es <b>INIZI10</b>. Dilo al pedir por WhatsApp.</span>
+      </div>
+    </form>
+  </section>
 </main>
 
 <p class="pie"><b>INIZI TECH</b> · Pedidos rápidos por WhatsApp</p>
@@ -485,6 +560,43 @@ $('#nombre').addEventListener('input', guardar);
    ========================================================= */
 // Con pocos productos el buscador sobra: se oculta para ir directo a elegir
 if (PRODUCTOS.length < 8) $('#buscar').hidden = true;
+// ---- Formulario "Déjanos tus datos" ----
+// Se envía a Netlify Forms sin recargar la página. Valida lo básico antes de enviar.
+const formRegistro = $('#formRegistro');
+const celularValido = (t) => normalizarCelular(t) !== null;
+function normalizarCelular(t) {
+  const d = String(t || '').replace(/\D/g, '');
+  if (/^3\d{9}$/.test(d)) return d;
+  if (/^573\d{9}$/.test(d)) return d.slice(2);
+  return null;
+}
+formRegistro.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const datos = new FormData(formRegistro);
+  const aviso2 = (m) => aviso(m);
+  if (!String(datos.get('nombre') || '').trim()) return aviso2('Escribe tu nombre');
+  if (!celularValido(datos.get('celular'))) return aviso2('Celular colombiano de 10 dígitos');
+  if (!String(datos.get('municipio') || '').trim() || !String(datos.get('barrio') || '').trim()) return aviso2('Escribe tu municipio y barrio');
+  if (!$('#rAutoriza').checked) return aviso2('Debes autorizar el tratamiento de datos');
+  if (datos.get('website')) return; // campo trampa lleno: descartar en silencio
+
+  const boton = $('#btnRegistro');
+  boton.disabled = true; boton.textContent = 'Enviando…';
+  try {
+    const cuerpo = new URLSearchParams();
+    for (const [k, v] of datos.entries()) cuerpo.append(k, v);
+    cuerpo.set('celular', '+57' + normalizarCelular(datos.get('celular')));   // guardamos normalizado
+    const r = await fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: cuerpo.toString() });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    formRegistro.reset();
+    $('#registroOk').hidden = false;
+    boton.style.display = 'none';
+  } catch (err) {
+    aviso('No se pudo enviar. Intenta de nuevo.');
+    boton.disabled = false; boton.textContent = 'Quiero mi 10%';
+  }
+});
+
 cargar();
 renderCategorias();
 renderLista();
