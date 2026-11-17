@@ -253,10 +253,13 @@
   <hr>
 
   <!-- ===================== DATOS OPCIONALES ===================== -->
-  <label class="campo" for="nombre">¿A nombre de quién? <i>(opcional)</i></label>
+  <label class="campo" for="nombre">Nombre</label>
   <input class="campo-input" id="nombre" type="text" placeholder="Ej: Camila Rodríguez" autocomplete="name">
 
-  <label class="campo" for="notas">¿Alguna nota especial? <i>(opcional)</i></label>
+  <label class="campo" for="direccion">Dirección de entrega</label>
+  <input class="campo-input" id="direccion" type="text" placeholder="Ej: Calle 5 # 3-20, Centro, Santo Tomás" autocomplete="street-address" required>
+
+  <label class="campo" for="notas">Nota especial</label>
   <textarea class="campo-input" id="notas" rows="2" placeholder="Ej: color, dirección de entrega, lo necesito para el sábado…"></textarea>
 
   <!-- ===================== TOTAL + ENVÍO ===================== -->
@@ -472,27 +475,34 @@ function fijar(id, cantidad) {
 const alternar = (id) => fijar(id, estado.carrito[id] ? 0 : 1);
 
 /* Texto del pedido que se envía por WhatsApp */
+// Devuelve el texto del pedido, o null si falta la dirección de entrega
 function textoPedido() {
   const ls = lineas();
   const total = ls.reduce((s, l) => s + l.sub, 0);
   const nombre = $('#nombre').value.trim();
+  const direccion = $('#direccion').value.trim();
   const notas = $('#notas').value.trim();
+  if (!direccion) { aviso('Escribe la dirección de entrega'); $('#direccion').focus(); return null; }
   let t = `¡Hola ${CONFIG.negocio}! 👋 Quiero hacer este pedido:\n\n`;
   ls.forEach(({ p, cant, sub }) => { t += `• ${cant} x ${p.nombre} — ${dinero(sub)}\n`; });
   t += `\n*Total: ${dinero(total)}*`;
   if (nombre) t += `\n\nA nombre de: ${nombre}`;
+  t += `\nDirección de entrega: ${direccion}`;
   if (notas) t += `\nNota: ${notas}`;
   return t;
 }
 
 function enviarWhatsapp() {
   if (!lineas().length) return;
-  const url = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(textoPedido())}`;
+  const texto = textoPedido();
+  if (texto === null) return;
+  const url = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(texto)}`;
   window.open(url, '_blank', 'noopener');
 }
 
 async function copiar() {
   const t = textoPedido();
+  if (t === null) return;
   try { await navigator.clipboard.writeText(t); }
   catch (e) { // alternativa si el navegador bloquea el portapapeles (ej. al abrir el archivo local)
     const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta);
