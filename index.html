@@ -256,13 +256,29 @@
   <label class="campo" for="nombre">Nombre</label>
   <input class="campo-input" id="nombre" type="text" placeholder="Ej: Camila Rodríguez" autocomplete="name">
 
+  <label class="campo" for="celular">Celular</label>
+  <input class="campo-input" id="celular" type="tel" inputmode="tel" autocomplete="tel" placeholder="Ej: 304 562 1589">
+
+  <label class="campo" for="municipio">Municipio</label>
+  <select class="campo-input" id="municipio"><option value="">Elige tu municipio</option></select>
+
   <label class="campo" for="direccion">Dirección de entrega</label>
-  <input class="campo-input" id="direccion" type="text" placeholder="Ej: Calle 5 # 3-20, Centro, Santo Tomás" autocomplete="street-address" required>
+  <input class="campo-input" id="direccion" type="text" placeholder="Ej: Calle 5 # 3-20, Centro" autocomplete="street-address">
+
+  <label class="campo" for="cumple">Fecha de cumpleaños</label>
+  <input class="campo-input" id="cumple" type="date">
+
+  <label class="campo" for="correo">Correo</label>
+  <input class="campo-input" id="correo" type="email" autocomplete="email" placeholder="tu@correo.com">
 
   <label class="campo" for="notas">Nota especial</label>
-  <textarea class="campo-input" id="notas" rows="2" placeholder="Ej: color, dirección de entrega, lo necesito para el sábado…"></textarea>
+  <textarea class="campo-input" id="notas" rows="2" placeholder="Ej: color, lo necesito para el sábado…"></textarea>
 
-  <!-- ===================== TOTAL + ENVÍO ===================== -->
+  <label class="autoriza">
+    <input type="checkbox" id="autoriza">
+    <span>Autorizo el tratamiento de mis datos personales según la <a href="politica-privacidad.html" target="_blank" rel="noopener">política de privacidad</a> (Ley 1581 de 2012).</span>
+  </label>
+
   <div class="resumen-total" id="resumenTotal" hidden>
     <span id="resumenItems"></span><b id="total"></b>
   </div>
@@ -273,47 +289,16 @@
   </button>
   <button class="btn-copiar" id="btnCopiar" hidden>o copia el pedido como texto</button>
 
-  <!-- ===================== DÉJANOS TUS DATOS ===================== -->
-  <!-- Formulario de Netlify: las respuestas se guardan en el panel de Netlify (Forms). -->
-  <section class="registro" id="registro">
-    <h2>¿Ya nos compraste? Déjanos tus datos</h2>
-    <p>Regístrate para recibir novedades y promociones.</p>
-
-    <form id="formRegistro" name="registro" method="POST" data-netlify="true" netlify-honeypot="website" novalidate>
-      <input type="hidden" name="form-name" value="registro">
-      <p class="trampa"><label>No llenes este campo: <input name="website" tabindex="-1" autocomplete="off"></label></p>
-
-      <label class="campo" for="rNombre">Nombre</label>
-      <input class="campo-input" id="rNombre" name="nombre" type="text" required autocomplete="name" placeholder="Ej: Camila Rodríguez">
-
-      <label class="campo" for="rCelular">Celular</label>
-      <input class="campo-input" id="rCelular" name="celular" type="tel" inputmode="tel" required autocomplete="tel" placeholder="Ej: 304 562 1589">
-
-      <label class="campo" for="rMunicipio">Municipio</label>
-      <input class="campo-input" id="rMunicipio" name="municipio" type="text" required placeholder="Ej: Santo Tomás">
-
-      <label class="campo" for="rCumple">Fecha de cumpleaños</label>
-      <input class="campo-input" id="rCumple" name="fecha_nacimiento" type="date" required>
-
-      <label class="campo" for="rEmail">Correo</label>
-      <input class="campo-input" id="rEmail" name="email" type="email" autocomplete="email" placeholder="tu@correo.com">
-
-      <label class="campo" for="rCompraste">¿Qué compraste?</label>
-      <input class="campo-input" id="rCompraste" name="que_compraste" type="text" placeholder="Ej: 2 AirPods Pro, un cargador">
-
-      <label class="autoriza">
-        <input type="checkbox" id="rAutoriza" name="autoriza" required>
-        <span>Autorizo el tratamiento de mis datos personales según la <a href="politica-privacidad.html" target="_blank" rel="noopener">política de privacidad</a> (Ley 1581 de 2012).</span>
-      </label>
-
-      <button class="btn-registro" id="btnRegistro" type="submit">Enviar</button>
-      <div class="registro-ok" id="registroOk" hidden>
-        ¡Listo, gracias!
-        <span>Te escribimos por WhatsApp para confirmar tu compra.</span>
-      </div>
-    </form>
-  </section>
 </main>
+
+<!-- Formulario oculto: Netlify guarda una copia de cada pedido (el envío lo hace el script). -->
+<form name="pedidos" data-netlify="true" netlify-honeypot="website" hidden>
+  <input name="form-name" value="pedidos">
+  <input name="website">
+  <input name="nombre"><input name="celular"><input name="municipio"><input name="direccion">
+  <input name="fecha_nacimiento"><input name="email"><textarea name="notas"></textarea>
+  <textarea name="pedido"></textarea>
+</form>
 
 <p class="pie"><b>INIZI TECH</b> · Pedidos rápidos por WhatsApp</p>
 <div class="toast" id="toast"></div>
@@ -328,6 +313,8 @@ const CONFIG = {
   // sin "+" ni espacios. Ej. Colombia: '573001234567'.
   // Si se deja vacío, WhatsApp pedirá elegir el contacto.
   whatsapp: '573045621589',   // +57 304 562 1589
+  // Costo del domicilio por municipio (COP). "Otro municipio" se confirma por WhatsApp.
+  domicilios: { 'Santo Tomás': 2000, 'Palmar': 3000, 'Sabana Grande': 4000 },
   moneda: 'COP',
   idioma: 'es-CO',
   claveStorage: 'inizitech_pedido_v3'
@@ -475,34 +462,10 @@ function fijar(id, cantidad) {
 const alternar = (id) => fijar(id, estado.carrito[id] ? 0 : 1);
 
 /* Texto del pedido que se envía por WhatsApp */
-// Devuelve el texto del pedido, o null si falta la dirección de entrega
-function textoPedido() {
-  const ls = lineas();
-  const total = ls.reduce((s, l) => s + l.sub, 0);
-  const nombre = $('#nombre').value.trim();
-  const direccion = $('#direccion').value.trim();
-  const notas = $('#notas').value.trim();
-  if (!direccion) { aviso('Escribe la dirección de entrega'); $('#direccion').focus(); return null; }
-  let t = `¡Hola ${CONFIG.negocio}! 👋 Quiero hacer este pedido:\n\n`;
-  ls.forEach(({ p, cant, sub }) => { t += `• ${cant} x ${p.nombre} — ${dinero(sub)}\n`; });
-  t += `\n*Total: ${dinero(total)}*`;
-  if (nombre) t += `\n\nA nombre de: ${nombre}`;
-  t += `\nDirección de entrega: ${direccion}`;
-  if (notas) t += `\nNota: ${notas}`;
-  return t;
-}
-
-function enviarWhatsapp() {
-  if (!lineas().length) return;
-  const texto = textoPedido();
-  if (texto === null) return;
-  const url = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(texto)}`;
-  window.open(url, '_blank', 'noopener');
-}
-
 async function copiar() {
-  const t = textoPedido();
-  if (t === null) return;
+  const d = validarPedido();
+  if (!d) return;
+  const t = textoPedido(d);
   try { await navigator.clipboard.writeText(t); }
   catch (e) { // alternativa si el navegador bloquea el portapapeles (ej. al abrir el archivo local)
     const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta);
@@ -562,42 +525,85 @@ $('#nombre').addEventListener('input', guardar);
    ========================================================= */
 // Con pocos productos el buscador sobra: se oculta para ir directo a elegir
 if (PRODUCTOS.length < 8) $('#buscar').hidden = true;
-// ---- Formulario "Déjanos tus datos" ----
-// Se envía a Netlify Forms sin recargar la página. Valida lo básico antes de enviar.
-const formRegistro = $('#formRegistro');
+// ---- Helpers del pedido ----
 function normalizarCelular(t) {
   const d = String(t || '').replace(/\D/g, '');
   if (/^3\d{9}$/.test(d)) return d;
   if (/^573\d{9}$/.test(d)) return d.slice(2);
   return null;
 }
-formRegistro.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const datos = new FormData(formRegistro);
-  if (datos.get('website')) return;                 // campo trampa lleno: descartar en silencio
-  if (!String(datos.get('nombre') || '').trim()) return aviso('Escribe tu nombre');
-  if (!normalizarCelular(datos.get('celular'))) return aviso('Celular colombiano de 10 dígitos');
-  if (!String(datos.get('municipio') || '').trim()) return aviso('Escribe tu municipio');
-  if (!datos.get('fecha_nacimiento')) return aviso('Escribe tu fecha de cumpleaños');
-  if (!$('#rAutoriza').checked) return aviso('Debes autorizar el tratamiento de datos');
+// Llena el selector de municipios desde CONFIG (una sola fuente)
+function llenarMunicipios() {
+  const sel = $('#municipio');
+  Object.keys(CONFIG.domicilios).forEach(m => sel.insertAdjacentHTML('beforeend', `<option>${m}</option>`));
+  sel.insertAdjacentHTML('beforeend', '<option value="Otro">Otro municipio</option>');
+}
+// Costo del domicilio: número, o null si se confirma por WhatsApp
+const domicilioDe = (muni) => CONFIG.domicilios[muni] ?? null;
 
-  const boton = $('#btnRegistro');
-  boton.disabled = true; boton.textContent = 'Enviando…';
-  try {
-    const cuerpo = new URLSearchParams();
-    for (const [k, v] of datos.entries()) cuerpo.append(k, v);
-    cuerpo.set('celular', '+57' + normalizarCelular(datos.get('celular')));   // guardamos normalizado
-    const r = await fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: cuerpo.toString() });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    formRegistro.reset();
-    $('#registroOk').hidden = false;
-    boton.style.display = 'none';
-  } catch (err) {
-    aviso('No se pudo enviar. Intenta de nuevo.');
-    boton.disabled = false; boton.textContent = 'Enviar';
-  }
-});
+// Revisa los datos antes de enviar. Devuelve los datos limpios, o null si falta algo.
+function validarPedido() {
+  const d = {
+    nombre: $('#nombre').value.trim(),
+    celular: $('#celular').value.trim(),
+    municipio: $('#municipio').value,
+    direccion: $('#direccion').value.trim(),
+    fecha_nacimiento: $('#cumple').value,
+    email: $('#correo').value.trim().toLowerCase(),
+    notas: $('#notas').value.trim(),
+    autoriza: $('#autoriza').checked
+  };
+  const falla = (campo, msg) => { aviso(msg); $('#' + campo).focus(); return null; };
+  if (!d.nombre) return falla('nombre', 'Escribe tu nombre');
+  if (!normalizarCelular(d.celular)) return falla('celular', 'Celular colombiano de 10 dígitos');
+  if (!d.municipio) return falla('municipio', 'Elige tu municipio');
+  if (!d.direccion) return falla('direccion', 'Escribe la dirección de entrega');
+  if (!d.fecha_nacimiento) return falla('cumple', 'Escribe tu fecha de cumpleaños');
+  if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) return falla('correo', 'El correo no parece válido');
+  if (!d.autoriza) return falla('autoriza', 'Debes autorizar el tratamiento de tus datos');
+  return d;
+}
 
+// Guarda una copia del pedido en Netlify. No espera la respuesta: WhatsApp se abre igual.
+function guardarPedidoNetlify(d, texto) {
+  const cuerpo = new URLSearchParams({
+    'form-name': 'pedidos', website: '', nombre: d.nombre,
+    celular: '+57' + normalizarCelular(d.celular), municipio: d.municipio,
+    direccion: d.direccion, fecha_nacimiento: d.fecha_nacimiento,
+    email: d.email, notas: d.notas, pedido: texto
+  });
+  fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+               body: cuerpo.toString(), keepalive: true }).catch(() => {});
+}
+
+// Texto del pedido para WhatsApp (con domicilio y total)
+function textoPedido(d) {
+  const ls = lineas();
+  const subtotal = ls.reduce((s, l) => s + l.sub, 0);
+  const dom = domicilioDe(d.municipio);
+  let t = `¡Hola ${CONFIG.negocio}! 👋 Quiero hacer este pedido:\n\n`;
+  ls.forEach(({ p, cant, sub }) => { t += `• ${cant} x ${p.nombre} — ${dinero(sub)}\n`; });
+  t += `\nProductos: ${dinero(subtotal)}`;
+  const zona = d.municipio === 'Otro' ? 'otro municipio' : d.municipio;
+  t += dom !== null ? `\nDomicilio (${zona}): ${dinero(dom)}`
+                    : `\nDomicilio (${zona}): lo confirmamos contigo por WhatsApp`;
+  t += `\n*Total: ${dinero(subtotal + (dom || 0))}*`;
+  if (d.nombre) t += `\n\nA nombre de: ${d.nombre}`;
+  t += `\nDirección de entrega: ${d.direccion}`;
+  if (d.notas) t += `\nNota: ${d.notas}`;
+  return t;
+}
+
+function enviarWhatsapp() {
+  if (!lineas().length) return;
+  const d = validarPedido();
+  if (!d) return;
+  const texto = textoPedido(d);
+  guardarPedidoNetlify(d, texto);
+  window.open(`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(texto)}`, '_blank', 'noopener');
+}
+
+llenarMunicipios();
 cargar();
 renderCategorias();
 renderLista();
@@ -617,7 +623,7 @@ DECISIONES TOMADAS (a favor de la rapidez del pedido)
    el botón dice "Selecciona un producto para pedir".
 4. "Copiar pedido" queda como opción secundaria por si el cliente prefiere
    pegarlo en otro chat o correo.
-5. Nombre y notas son opcionales; no hay registro ni inicio de sesión.
+5. Nombre, correo y notas son opcionales; no hay registro ni inicio de sesión.
 6. Búsqueda y categorías arriba, compactas, para catálogos más grandes.
 7. Colores tomados del imagotipo (azul #2e466b y gris #e5e5e5). El logo va
    incrustado en SVG para que el archivo funcione solo, sin imágenes aparte.
