@@ -710,6 +710,8 @@ values
   ('cargador-20w', 'Cargador 20W-25W',
    'Carga rápida para iPhone: carga completa en 1 hora.',
    'cargadores', 60000, null, '[]', false, false, 300),
+  ('cables-cargador', 'Cables de cargador', null,
+   'cargadores', 20000, null, '[]', false, false, 310),
   ('fundas', 'Fundas para celular', null,
    'accesorios', 20000, null,
    '[{"clave":"modelo_celular","etiqueta":"Modelo de tu celular","obligatoria":true},
