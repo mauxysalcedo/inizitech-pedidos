@@ -170,8 +170,19 @@
     margin: 20px 2px 12px; font-size: 15px;
   }
   .resumen-total[hidden] { display: none; }
+  .entrega { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+  .entrega label { position: relative; }
+  .entrega input { position: absolute; opacity: 0; pointer-events: none; }
+  .entrega span {
+    display: block; text-align: center; padding: 11px 8px; border-radius: 12px;
+    background: var(--marca-suave); color: var(--marca); font-weight: 700; font-size: 14px;
+    border: 2px solid transparent; cursor: pointer;
+  }
+  .entrega input:checked + span { background: var(--marca); color: var(--blanco); }
+  .entrega input:focus-visible + span { outline: 3px solid var(--destacado); outline-offset: 2px; }
   .linea-domicilio { margin: -6px 2px 12px; font-size: 14px; color: var(--gris); }
   .linea-domicilio[hidden] { display: none; }
+  #bloqueDomicilio[hidden] { display: none; }
   .resumen-total b { font-size: 24px; }
 
   .btn-whatsapp {
@@ -192,8 +203,31 @@
   }
   .btn-copiar[hidden] { display: none; }
 
+  /* Bloque "Déjanos tus datos" (formulario de clientes) */
+  .registro { margin-top: 28px; padding-top: 22px; border-top: 1px dashed var(--marca-borde); }
+  .registro h2 { font-size: 17px; font-weight: 800; }
+  .registro > p { color: var(--gris); font-size: 14px; margin: 4px 0 14px; }
+  .registro .fila-doble { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .registro .campo { margin: 12px 0 0; }
+  .registro .campo-input { margin-top: 5px; }
+  .autoriza { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: 13px; color: var(--marca-oscuro); }
+  .autoriza input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
+  .autoriza a { color: var(--marca); }
+  .btn-registro {
+    width: 100%; min-height: 50px; margin-top: 16px; border-radius: 14px;
+    background: var(--marca); color: var(--blanco); font-weight: 800; font-size: 16px;
+  }
+  .btn-registro:hover { background: var(--marca-oscuro); }
+  .btn-registro:disabled { opacity: .6; cursor: default; }
+  .registro-ok {
+    margin-top: 14px; padding: 14px; border-radius: 12px; background: #e8f8ee;
+    color: #14532d; font-weight: 700; text-align: center;
+  }
+  .registro-ok[hidden] { display: none; }
+  .registro-ok span { display: block; font-weight: 400; font-size: 13px; margin-top: 4px; }
   /* Campo trampa anti-spam: invisible para las personas */
   .trampa { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  @media (max-width: 520px) { .registro .fila-doble { grid-template-columns: 1fr; } }
 
   .pie { text-align: center; color: var(--logo-claro); opacity: .8; font-size: 13px; margin-top: 22px; }
   .pie b { color: var(--blanco); letter-spacing: 1px; }
@@ -248,11 +282,19 @@
   <label class="campo" for="celular">Celular</label>
   <input class="campo-input" id="celular" type="tel" inputmode="tel" autocomplete="tel" placeholder="Ej: 304 562 1589">
 
-  <label class="campo" for="municipio">Municipio</label>
-  <select class="campo-input" id="municipio"><option value="">Elige tu municipio</option></select>
+  <label class="campo">¿Cómo lo recibes?</label>
+  <div class="entrega" role="radiogroup" aria-label="Forma de entrega">
+    <label><input type="radio" name="entrega" value="domicilio" checked><span>🛵 Domicilio</span></label>
+    <label><input type="radio" name="entrega" value="recoger"><span>🏪 Recoger en tienda</span></label>
+  </div>
 
-  <label class="campo" for="direccion">Dirección de entrega</label>
-  <input class="campo-input" id="direccion" type="text" placeholder="Ej: Calle 5 # 3-20, Centro" autocomplete="street-address">
+  <div id="bloqueDomicilio">
+    <label class="campo" for="municipio">Municipio</label>
+    <select class="campo-input" id="municipio"><option value="">Elige tu municipio</option></select>
+
+    <label class="campo" for="direccion">Dirección de entrega</label>
+    <input class="campo-input" id="direccion" type="text" placeholder="Ej: Calle 5 # 3-20, Centro" autocomplete="street-address">
+  </div>
 
   <label class="campo" for="cumple">Fecha de cumpleaños</label>
   <input class="campo-input" id="cumple" type="date">
@@ -286,7 +328,7 @@
   <input name="form-name" value="pedidos">
   <input name="website">
   <input name="nombre"><input name="celular"><input name="municipio"><input name="direccion">
-  <input name="fecha_nacimiento"><input name="email"><textarea name="notas"></textarea>
+  <input name="entrega"><input name="fecha_nacimiento"><input name="email"><textarea name="notas"></textarea>
   <textarea name="pedido"></textarea>
 </form>
 
@@ -438,10 +480,11 @@ function renderTotal() {
   const hay = ls.length > 0;
   // Domicilio según el municipio elegido (si es "Otro", se confirma por WhatsApp)
   const muni = $('#municipio').value;
-  const dom = muni ? domicilioDe(muni) : null;
+  const dom = esDomicilio() && muni ? domicilioDe(muni) : null;
   const total = subtotal + (dom || 0);
   const linea = $('#lineaDomicilio');
-  if (!muni) { linea.hidden = true; }
+  if (!esDomicilio()) { linea.hidden = false; linea.textContent = 'Recoges en tienda: sin costo de domicilio'; }
+  else if (!muni) { linea.hidden = true; }
   else {
     linea.hidden = false;
     linea.textContent = dom !== null
@@ -527,6 +570,10 @@ $('#btnWhatsapp').addEventListener('click', enviarWhatsapp);
 $('#btnCopiar').addEventListener('click', copiar);
 $('#nombre').addEventListener('input', guardar);
 $('#municipio').addEventListener('change', renderTotal);
+document.querySelectorAll('input[name="entrega"]').forEach(r => r.addEventListener('change', () => {
+  $('#bloqueDomicilio').hidden = !esDomicilio();
+  renderTotal();
+}));
 
 /* =========================================================
    INICIO
@@ -546,16 +593,20 @@ function llenarMunicipios() {
   Object.keys(CONFIG.domicilios).forEach(m => sel.insertAdjacentHTML('beforeend', `<option>${m}</option>`));
   sel.insertAdjacentHTML('beforeend', '<option value="Otro">Otro municipio (lo confirmamos por WhatsApp)</option>');
 }
+// ¿El cliente eligió domicilio? (si no, es recoger en tienda)
+const esDomicilio = () => document.querySelector('input[name="entrega"]:checked').value === 'domicilio';
 // Costo del domicilio: número, o null si se confirma por WhatsApp
 const domicilioDe = (muni) => CONFIG.domicilios[muni] ?? null;
 
 // Revisa los datos antes de enviar. Devuelve los datos limpios, o null si falta algo.
 function validarPedido() {
+  const dom = esDomicilio();
   const d = {
     nombre: $('#nombre').value.trim(),
     celular: $('#celular').value.trim(),
-    municipio: $('#municipio').value,
-    direccion: $('#direccion').value.trim(),
+    entrega: dom ? 'domicilio' : 'recoger',
+    municipio: dom ? $('#municipio').value : '',
+    direccion: dom ? $('#direccion').value.trim() : '',
     fecha_nacimiento: $('#cumple').value,
     email: $('#correo').value.trim().toLowerCase(),
     notas: $('#notas').value.trim(),
@@ -564,8 +615,8 @@ function validarPedido() {
   const falla = (campo, msg) => { aviso(msg); $('#' + campo).focus(); return null; };
   if (!d.nombre) return falla('nombre', 'Escribe tu nombre');
   if (!normalizarCelular(d.celular)) return falla('celular', 'Celular colombiano de 10 dígitos');
-  if (!d.municipio) return falla('municipio', 'Elige tu municipio');
-  if (!d.direccion) return falla('direccion', 'Escribe la dirección de entrega');
+  if (dom && !d.municipio) return falla('municipio', 'Elige tu municipio');
+  if (dom && !d.direccion) return falla('direccion', 'Escribe la dirección de entrega');
   if (!d.fecha_nacimiento) return falla('cumple', 'Escribe tu fecha de cumpleaños');
   if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) return falla('correo', 'El correo no parece válido');
   if (!d.autoriza) return falla('autoriza', 'Debes autorizar el tratamiento de tus datos');
@@ -576,7 +627,7 @@ function validarPedido() {
 function guardarPedidoNetlify(d, texto) {
   const cuerpo = new URLSearchParams({
     'form-name': 'pedidos', website: '', nombre: d.nombre,
-    celular: '+57' + normalizarCelular(d.celular), municipio: d.municipio,
+    celular: '+57' + normalizarCelular(d.celular), entrega: d.entrega, municipio: d.municipio,
     direccion: d.direccion, fecha_nacimiento: d.fecha_nacimiento,
     email: d.email, notas: d.notas, pedido: texto
   });
@@ -588,14 +639,18 @@ function guardarPedidoNetlify(d, texto) {
 function textoPedido(d) {
   const ls = lineas();
   const subtotal = ls.reduce((s, l) => s + l.sub, 0);
-  const dom = domicilioDe(d.municipio);
+  const dom = d.entrega === 'domicilio' ? domicilioDe(d.municipio) : 0;
   let t = `¡Hola ${CONFIG.negocio}! 👋 Quiero hacer este pedido:\n\n`;
   ls.forEach(({ p, cant, sub }) => { t += `• ${cant} x ${p.nombre} — ${dinero(sub)}\n`; });
   t += `\n*Total: ${dinero(subtotal + (dom || 0))}*`;
-  const zona = d.municipio === 'Otro' ? 'otro municipio (domicilio por confirmar)' : d.municipio;
-  t += `\nEntrega en: ${zona}`;
+  if (d.entrega === 'recoger') {
+    t += `\nEntrega: recoger en tienda`;
+  } else {
+    const zona = d.municipio === 'Otro' ? 'otro municipio (domicilio por confirmar)' : d.municipio;
+    t += `\nEntrega en: ${zona}`;
+  }
   if (d.nombre) t += `\n\nA nombre de: ${d.nombre}`;
-  t += `\nDirección de entrega: ${d.direccion}`;
+  if (d.entrega === 'domicilio') t += `\nDirección de entrega: ${d.direccion}`;
   if (d.notas) t += `\nNota: ${d.notas}`;
   return t;
 }
