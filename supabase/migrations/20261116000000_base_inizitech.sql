@@ -10,8 +10,7 @@
 --      resumen_ventas, cumpleanos_del_mes, oportunidades_seguimiento
 --      (solo para la dueña / Power BI).
 --   4. Cierra la seguridad: el público NO lee ni escribe tablas; solo
---      lee productos_publicos y llama a dos funciones: crear_pedido y
---      registrar_cliente.
+--      lee productos_publicos y llama a la función crear_pedido.
 --   5. Programa la cancelación automática de pedidos pendientes (48 h).
 --   6. Carga los productos y combos que hoy están en la página.
 --
@@ -103,6 +102,14 @@ create table public.codigos_descuento (
   activo      boolean not null default true,
   vence_en    timestamptz
 );
+-- ---- zonas_domicilio: costo del domicilio por municipio ----------
+create table public.zonas_domicilio (
+  municipio  text primary key,
+  costo      integer not null check (costo >= 0),
+  activo     boolean not null default true
+);
+comment on table public.zonas_domicilio is 'Costo del domicilio por municipio. Si cambia un precio, se cambia aquí.';
+
 comment on table public.codigos_descuento is 'Códigos de descuento (ej. INIZI10 = 10%). Se manejan desde aquí, no desde el código de la página.';
 
 -- ---- clientes --------------------------------------------------------
@@ -114,7 +121,6 @@ create table public.clientes (
                         email = lower(email)
                         and email ~ '^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$')),
   municipio           text,
-  barrio              text,
   origen              text not null default 'pagina'
                         check (origen in ('pagina','formulario','google_forms','agente','manual')),
   intereses           text,
@@ -155,6 +161,9 @@ create table public.pedidos (
                        check (estado in ('pendiente','confirmado','entregado','cancelado')),
   estado_pago        text not null default 'pendiente'
                        check (estado_pago in ('pendiente','pagado')),
+  entrega            text not null default 'domicilio'
+                       check (entrega in ('domicilio','recoger')),
+  municipio_entrega  text,
   direccion_entrega  text,
   notas              text,
   canal              text not null default 'pagina'
@@ -317,19 +326,19 @@ select c.id as cliente_id, c.nombre, c.celular, c.email, c.municipio,
 
 -- ---- crear_pedido ----------------------------------------------------
 -- p_items = [{"slug":"fundas","cantidad":1,"especificaciones":{"modelo_celular":"iPhone 13","color":"negra"}}, ...]
--- Los PRECIOS Y COSTOS se toman de la tabla productos, nunca de lo que envía el navegador.
+-- Los PRECIOS, COSTOS y el DOMICILIO se toman de la base, nunca del navegador.
 -- Devuelve {"ok":true,"numero":"INZ-1042","total":...} o {"ok":false,"codigo":...,"mensaje":...}.
 create or replace function public.crear_pedido(
   p_nombre           text,
   p_celular          text,
+  p_email            text,
+  p_fecha_nacimiento date,
+  p_entrega          text,
   p_municipio        text,
-  p_barrio           text,
   p_direccion        text,
   p_forma_pago       text,
   p_items            jsonb,
   p_autoriza_datos   boolean,
-  p_email            text    default null,
-  p_fecha_nacimiento date    default null,
   p_notas            text    default null,
   p_cuotas           integer default null,
   p_codigo_descuento text    default null,
@@ -348,10 +357,10 @@ declare
   v_celular    text;
   v_nombre     text := nullif(trim(coalesce(p_nombre, '')), '');
   v_municipio  text := nullif(trim(coalesce(p_municipio, '')), '');
-  v_barrio     text := nullif(trim(coalesce(p_barrio, '')), '');
   v_direccion  text := nullif(trim(coalesce(p_direccion, '')), '');
   v_email      text := nullif(lower(trim(coalesce(p_email, ''))), '');
   v_notas      text := nullif(trim(coalesce(p_notas, '')), '');
+  v_entrega    text := nullif(trim(coalesce(p_entrega, '')), '');
   v_item       jsonb;
   v_opc        jsonb;
   v_prod       public.productos%rowtype;
@@ -363,6 +372,7 @@ declare
   v_descuento  integer := 0;
   v_pct        integer;
   v_codigo     text := nullif(upper(trim(coalesce(p_codigo_descuento, ''))), '');
+  v_envio      integer := 0;
   v_total      integer;
   v_cliente_id uuid;
   v_pedido_id  uuid;
@@ -386,18 +396,24 @@ begin
   end if;
   insert into public.intentos_envio (celular, tipo) values (v_celular, 'pedido');
 
-  -- Validaciones de datos
+  -- Datos obligatorios
   if v_nombre is null or length(v_nombre) > 100 then
     return public._error('nombre_invalido', 'Escribe tu nombre.');
   end if;
   if p_autoriza_datos is not true then
     return public._error('sin_autorizacion', 'Debes autorizar el tratamiento de tus datos personales para continuar.');
   end if;
-  if v_municipio is null or v_barrio is null or length(v_municipio) > 80 or length(v_barrio) > 80 then
-    return public._error('ubicacion_invalida', 'Escribe tu municipio y tu barrio.');
+  if v_email is null then
+    return public._error('correo_requerido', 'Escribe tu correo.');
   end if;
-  if v_direccion is null or length(v_direccion) < 5 or length(v_direccion) > 200 then
-    return public._error('direccion_invalida', 'Escribe tu dirección de entrega.');
+  if v_email !~ '^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$' then
+    return public._error('email_invalido', 'El correo no parece válido.');
+  end if;
+  if p_fecha_nacimiento is null then
+    return public._error('fecha_requerida', 'Escribe tu fecha de cumpleaños.');
+  end if;
+  if p_fecha_nacimiento < date '1920-01-01' or p_fecha_nacimiento > current_date then
+    return public._error('fecha_invalida', 'La fecha de cumpleaños no es válida.');
   end if;
   if p_forma_pago is null or p_forma_pago not in ('contado','transferencia','sistecredito') then
     return public._error('forma_pago_invalida', 'Elige una forma de pago.');
@@ -405,18 +421,38 @@ begin
   if p_canal is null or p_canal not in ('pagina','web') then
     return public._error('canal_invalido', 'Canal no permitido.');
   end if;
-  if v_email is not null and v_email !~ '^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$' then
-    return public._error('email_invalido', 'El correo no parece válido.');
-  end if;
-  if p_fecha_nacimiento is not null
-     and (p_fecha_nacimiento < date '1920-01-01' or p_fecha_nacimiento > current_date) then
-    return public._error('fecha_invalida', 'La fecha de cumpleaños no es válida.');
-  end if;
   if p_cuotas is not null and (p_forma_pago <> 'sistecredito' or p_cuotas not between 1 and 36) then
     return public._error('cuotas_invalidas', 'Las cuotas solo aplican con Sistecrédito (1 a 36).');
   end if;
   if v_notas is not null and length(v_notas) > 500 then
     return public._error('notas_largas', 'Las notas son muy largas (máximo 500 caracteres).');
+  end if;
+
+  -- Forma de entrega: domicilio (con municipio y dirección) o pasar a recoger
+  if v_entrega = 'domicilio' then
+    if v_municipio is null or length(v_municipio) > 80 then
+      return public._error('municipio_requerido', 'Elige tu municipio.');
+    end if;
+    if v_direccion is null or length(v_direccion) < 5 or length(v_direccion) > 200 then
+      return public._error('direccion_invalida', 'Escribe la dirección de entrega.');
+    end if;
+    if v_municipio = 'Otro' then
+      -- Otro municipio: el domicilio se confirma por WhatsApp
+      v_envio := 0;
+      v_notas := concat_ws(' | ', 'Domicilio por confirmar (otro municipio)', v_notas);
+    else
+      select costo into v_envio from public.zonas_domicilio
+       where municipio = v_municipio and activo;
+      if not found then
+        return public._error('municipio_invalido', 'Elige un municipio de la lista.');
+      end if;
+    end if;
+  elsif v_entrega = 'recoger' then
+    v_municipio := null;
+    v_direccion := null;
+    v_envio     := 0;
+  else
+    return public._error('entrega_invalida', 'Elige domicilio o pasar a recoger.');
   end if;
 
   -- Productos del pedido
@@ -481,17 +517,16 @@ begin
     end if;
     v_descuento := round(v_subtotal * v_pct / 100.0)::integer;
   end if;
-  v_total := v_subtotal - v_descuento;
+  v_total := v_subtotal - v_descuento + v_envio;
 
   -- Cliente: crea o actualiza por celular SIN borrar datos que ya existían
   insert into public.clientes
-    (nombre, celular, email, municipio, barrio, origen, fecha_nacimiento, autoriza_datos, fecha_autorizacion)
+    (nombre, celular, email, municipio, origen, fecha_nacimiento, autoriza_datos, fecha_autorizacion)
   values
-    (v_nombre, v_celular, v_email, v_municipio, v_barrio, 'pagina', p_fecha_nacimiento, true, now())
+    (v_nombre, v_celular, v_email, v_municipio, 'pagina', p_fecha_nacimiento, true, now())
   on conflict (celular) do update set
     email              = coalesce(excluded.email,            public.clientes.email),
     municipio          = coalesce(excluded.municipio,        public.clientes.municipio),
-    barrio             = coalesce(excluded.barrio,           public.clientes.barrio),
     fecha_nacimiento   = coalesce(excluded.fecha_nacimiento, public.clientes.fecha_nacimiento),
     autoriza_datos     = true,
     fecha_autorizacion = coalesce(public.clientes.fecha_autorizacion, excluded.fecha_autorizacion)
@@ -499,11 +534,11 @@ begin
 
   -- Pedido + detalle (todo en la misma transacción)
   insert into public.pedidos
-    (cliente_id, subtotal, descuento, codigo_descuento, total, forma_pago, cuotas,
-     direccion_entrega, notas, canal, utm_source, utm_medium, utm_content)
+    (cliente_id, subtotal, descuento, codigo_descuento, costo_envio, total, forma_pago, cuotas,
+     entrega, municipio_entrega, direccion_entrega, notas, canal, utm_source, utm_medium, utm_content)
   values
-    (v_cliente_id, v_subtotal, v_descuento, v_codigo, v_total, p_forma_pago, p_cuotas,
-     v_direccion, v_notas, p_canal,
+    (v_cliente_id, v_subtotal, v_descuento, v_codigo, v_envio, v_total, p_forma_pago, p_cuotas,
+     v_entrega, v_municipio, v_direccion, v_notas, p_canal,
      left(nullif(trim(p_utm_source), ''), 100),
      left(nullif(trim(p_utm_medium), ''), 100),
      left(nullif(trim(p_utm_content), ''), 200))
@@ -518,89 +553,8 @@ begin
        (v_item->>'costo')::integer, v_item->'spec');
   end loop;
 
-  return jsonb_build_object('ok', true, 'numero', v_numero, 'total', v_total, 'descuento', v_descuento);
-end
-$$;
-
--- ---- registrar_cliente ----------------------------------------------
--- Para el formulario /registro (clientes antiguos). Devuelve el código de descuento activo.
-create or replace function public.registrar_cliente(
-  p_nombre           text,
-  p_celular          text,
-  p_municipio        text,
-  p_barrio           text,
-  p_autoriza_datos   boolean,
-  p_email            text default null,
-  p_intereses        text default null,
-  p_fecha_nacimiento date default null,
-  p_website          text default null         -- campo trampa (honeypot)
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_celular   text;
-  v_nombre    text := nullif(trim(coalesce(p_nombre, '')), '');
-  v_municipio text := nullif(trim(coalesce(p_municipio, '')), '');
-  v_barrio    text := nullif(trim(coalesce(p_barrio, '')), '');
-  v_email     text := nullif(lower(trim(coalesce(p_email, ''))), '');
-  v_intereses text := nullif(trim(coalesce(p_intereses, '')), '');
-  v_codigo    text;
-begin
-  if nullif(trim(coalesce(p_website, '')), '') is not null then
-    return public._error('solicitud_invalida', 'No se pudo procesar la solicitud.');
-  end if;
-
-  v_celular := public.normalizar_celular(p_celular);
-  if v_celular is null then
-    return public._error('celular_invalido', 'Escribe un celular colombiano válido de 10 dígitos (ej. 304 562 1589).');
-  end if;
-
-  if (select count(*) from public.intentos_envio
-       where celular = v_celular and creado_en > now() - interval '10 minutes') >= 3 then
-    return public._error('demasiados_intentos', 'Has enviado varios registros seguidos. Espera unos minutos e inténtalo de nuevo.');
-  end if;
-  insert into public.intentos_envio (celular, tipo) values (v_celular, 'registro');
-
-  if v_nombre is null or length(v_nombre) > 100 then
-    return public._error('nombre_invalido', 'Escribe tu nombre.');
-  end if;
-  if p_autoriza_datos is not true then
-    return public._error('sin_autorizacion', 'Debes autorizar el tratamiento de tus datos personales para continuar.');
-  end if;
-  if v_municipio is null or v_barrio is null or length(v_municipio) > 80 or length(v_barrio) > 80 then
-    return public._error('ubicacion_invalida', 'Escribe tu municipio y tu barrio.');
-  end if;
-  if v_email is not null and v_email !~ '^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$' then
-    return public._error('email_invalido', 'El correo no parece válido.');
-  end if;
-  if p_fecha_nacimiento is not null
-     and (p_fecha_nacimiento < date '1920-01-01' or p_fecha_nacimiento > current_date) then
-    return public._error('fecha_invalida', 'La fecha de cumpleaños no es válida.');
-  end if;
-  if v_intereses is not null and length(v_intereses) > 300 then
-    return public._error('intereses_largos', 'La lista de intereses es muy larga.');
-  end if;
-
-  insert into public.clientes
-    (nombre, celular, email, municipio, barrio, origen, intereses, fecha_nacimiento, autoriza_datos, fecha_autorizacion)
-  values
-    (v_nombre, v_celular, v_email, v_municipio, v_barrio, 'formulario', v_intereses, p_fecha_nacimiento, true, now())
-  on conflict (celular) do update set
-    email              = coalesce(excluded.email,            public.clientes.email),
-    municipio          = coalesce(excluded.municipio,        public.clientes.municipio),
-    barrio             = coalesce(excluded.barrio,           public.clientes.barrio),
-    intereses          = coalesce(excluded.intereses,        public.clientes.intereses),
-    fecha_nacimiento   = coalesce(excluded.fecha_nacimiento, public.clientes.fecha_nacimiento),
-    autoriza_datos     = true,
-    fecha_autorizacion = coalesce(public.clientes.fecha_autorizacion, excluded.fecha_autorizacion);
-
-  select codigo into v_codigo from public.codigos_descuento
-   where codigo = 'INIZI10' and activo and (vence_en is null or vence_en > now());
-
-  return jsonb_build_object('ok', true, 'codigo_descuento', v_codigo);
+  return jsonb_build_object('ok', true, 'numero', v_numero, 'total', v_total,
+                            'costo_envio', v_envio, 'descuento', v_descuento);
 end
 $$;
 
@@ -617,6 +571,7 @@ alter table public.clientes          enable row level security;
 alter table public.pedidos           enable row level security;
 alter table public.detalle_pedido    enable row level security;
 alter table public.codigos_descuento enable row level security;
+alter table public.zonas_domicilio     enable row level security;
 alter table public.intentos_envio    enable row level security;
 
 -- Quitar los permisos que Supabase da por defecto al público...
@@ -633,10 +588,8 @@ alter default privileges in schema public revoke all on functions from public, a
 grant usage on schema public to anon, authenticated;
 grant select on public.productos_publicos to anon, authenticated;
 grant execute on function public.crear_pedido(
-  text, text, text, text, text, text, jsonb, boolean,
-  text, date, text, integer, text, text, text, text, text, text) to anon, authenticated;
-grant execute on function public.registrar_cliente(
-  text, text, text, text, boolean, text, text, date, text) to anon, authenticated;
+  text, text, text, date, text, text, text, text, jsonb, boolean,
+  text, integer, text, text, text, text, text, text) to anon, authenticated;
 
 
 -- ---------------------------------------------------------------------
@@ -669,6 +622,12 @@ select cron.schedule(
 -- ---------------------------------------------------------------------
 
 insert into public.codigos_descuento (codigo, porcentaje) values ('INIZI10', 10);
+
+-- Domicilio por municipio (mismos nombres que la lista de la página).
+insert into public.zonas_domicilio (municipio, costo) values
+  ('Santo Tomás, Atlántico', 2000),
+  ('Palmar de Varela, Atlántico', 3000),
+  ('Sabana Grande, Atlántico', 4000);
 
 -- "costo" queda vacío para que lo llenes tú. Los precios son los actuales de la página.
 -- precio_antes solo en los AirPods Pro / Pro 2 (precio real de tu tienda web);
