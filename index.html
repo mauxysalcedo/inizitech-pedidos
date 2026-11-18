@@ -360,21 +360,29 @@ const CONFIG = {
    - masPedido: true lo muestra en la pestaña "Lo más pedido" (la vista inicial).
    ========================================================= */
 const PRODUCTOS = [
-  // Catálogo tomado de la tienda web de Inizi Tech (precios en COP).
-  // "antes": precio anterior tachado cuando el producto está en oferta.
-  { id: 'airpods-pro',   nombre: 'AirPods Pro',          desc: 'Cancelación de ruido, graves profundos y batería de larga duración.', precio: 80000, antes: 100000, categoria: 'Audio', top: true, masPedido: true },
-  { id: 'airpods-pro-2', nombre: 'AirPods Pro 2',        desc: '', precio: 80000, antes: 100000, categoria: 'Audio' },
-  { id: 'airpods-pro-3', nombre: 'AirPods Pro 3',        desc: '', precio: 110000, categoria: 'Audio', masPedido: true },
+  // Catálogo (precios en COP). "antes": precio anterior tachado cuando el producto está en oferta.
+  // "top": etiqueta "Más pedido". "masPedido": aparece en la pestaña "Lo más pedido".
+  { id: 'airpods-pro-2', nombre: 'AirPods Pro 2',        desc: '', precio: 80000, antes: 100000, categoria: 'Audífonos', top: true, masPedido: true },
+  { id: 'airpods-pro',   nombre: 'AirPods Pro',          desc: 'Cancelación de ruido, graves profundos y batería de larga duración.', precio: 75000, antes: 100000, categoria: 'Audífonos' },
+  { id: 'airpods-pro-3', nombre: 'AirPods Pro 3',        desc: '', precio: 110000, categoria: 'Audífonos', masPedido: true },
+  { id: 'airpods-4',     nombre: 'AirPods 4',            desc: '', precio: 80000, categoria: 'Audífonos' },
   { id: 'watch-ultra-8', nombre: 'Watch Ultra 8',        desc: '', precio: 65000, categoria: 'Relojes' },
-  { id: 'cargador-20w',  nombre: 'Cargador 20W-25W',     desc: 'Carga rápida para iPhone: carga completa en 1 hora.', precio: 60000, categoria: 'Cargadores', masPedido: true },
-  { id: 'cables-cargador', nombre: 'Cables de cargador', desc: '', precio: 20000, categoria: 'Cargadores' },
+  { id: 'cargador-20w',  nombre: 'Cargador 20W-25W 1.1', desc: 'Carga rápida para iPhone: carga completa en 1 hora.', precio: 60000, categoria: 'Cargadores', masPedido: true },
+  { id: 'cargador-original-20-25', nombre: 'Cargador original 20-25W', desc: '', precio: 120000, categoria: 'Cargadores' },
+  { id: 'cubo-25w-11',   nombre: 'Cubo de 25 Watts 1.1', desc: '', precio: 35000, categoria: 'Cargadores' },
+  { id: 'cubo-25w-original', nombre: 'Cubo original 25W', desc: '', precio: 55000, categoria: 'Cargadores' },
+  { id: 'cable-lightning', nombre: 'Cable Lightning',    desc: '', precio: 20000, categoria: 'Cargadores', masPedido: true },
+  { id: 'cable-lightning-original', nombre: 'Cable Lightning original', desc: '', precio: 40000, categoria: 'Cargadores' },
+  { id: 'cable-usbc-original', nombre: 'Cable USB-C original', desc: '', precio: 45000, categoria: 'Cargadores' },
+  { id: 'cable-usbc-11', nombre: 'Cable USB-C 1.1',     desc: '', precio: 30000, categoria: 'Cargadores' },
+  { id: 'power-bank-pb-610', nombre: 'Power Bank PB-610 de 20.000', desc: '', precio: 75000, categoria: 'Accesorios' },
   { id: 'fundas',        nombre: 'Fundas para celular',  desc: '', precio: 20000, categoria: 'Accesorios' },
   // Combos: se venden como un solo producto con precio especial.
   { id: 'combo-airpods-reloj',    nombre: 'Combo AirPods + reloj',            desc: 'Dos de nuestros productos más vendidos en un solo combo.', precio: 114999, antes: 145000, categoria: 'Combos' },
-  { id: 'combo-2-airpods-carg',   nombre: 'Combo 2 AirPods Pro 2 + cargador', desc: '2 AirPods Pro 2 y un cargador completo. Ideal para regalar o compartir.', precio: 134999, antes: 220000, categoria: 'Combos', masPedido: true },
+  { id: 'combo-2-airpods-carg',   nombre: 'Combo 2 AirPods Pro 2 + cargador', desc: '2 AirPods Pro 2 y un cargador completo. Ideal para regalar o compartir.', precio: 134999, antes: 220000, categoria: 'Combos' },
   { id: 'combo-flash-2-airpods',  nombre: 'Combo flash: 2 AirPods Pro 2',     desc: 'Llévate 2 AirPods Pro 2. Promoción por tiempo limitado.', precio: 109000, antes: 160000, categoria: 'Combos' },
-  { id: 'combo-full',             nombre: 'Combo full: AirPods + reloj + cargador', desc: 'Nuestro combo más completo: AirPods, reloj y cargador.', precio: 139999, antes: 205000, categoria: 'Combos', masPedido: true },
-  { id: 'combo-2-relojes',        nombre: 'Combo 2 relojes',                  desc: '2 Watch Ultra 8 en un solo combo.', precio: 110000, antes: 130000, categoria: 'Combos' }
+  { id: 'combo-full',             nombre: 'Combo full: AirPods + reloj + cargador', desc: 'Nuestro combo más completo: AirPods, reloj y cargador.', precio: 139999, antes: 205000, categoria: 'Combos' },
+  { id: 'combo-2-relojes',        nombre: 'Combo 2 relojes',                  desc: '2 Watch Ultra 8 en un solo combo.', precio: 110000, antes: 130000, categoria: 'Combos', masPedido: true }
 ];
 
 /* =========================================================
@@ -382,7 +390,7 @@ const PRODUCTOS = [
    ========================================================= */
 const estado = { categoria: 'Lo más pedido', busqueda: '', carrito: {} }; // carrito: { id: cantidad }
 // Orden de las pestañas. 'Lo más pedido' es la vista inicial.
-const CATEGORIAS = ['Lo más pedido', 'Combos', 'Audio', 'Relojes', 'Cargadores', 'Accesorios'];
+const CATEGORIAS = ['Lo más pedido', 'Combos', 'Audífonos', 'Relojes', 'Cargadores', 'Accesorios'];
 
 const $ = (s) => document.querySelector(s);
 const porId = Object.fromEntries(PRODUCTOS.map(p => [p.id, p]));
