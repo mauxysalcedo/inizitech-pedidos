@@ -225,6 +225,15 @@
   }
   .registro-ok[hidden] { display: none; }
   .registro-ok span { display: block; font-weight: 400; font-size: 13px; margin-top: 4px; }
+  /* Opciones del producto (color, modelo de celular): solo al elegir el producto */
+  .opciones { grid-column: 1 / -1; display: none; gap: 6px; margin-top: 4px; }
+  .seleccionado .opciones { display: grid; }
+  .opciones .campo { margin: 6px 0 0; font-size: 13px; }
+  .opciones .campo-input { margin-top: 2px; }
+  /* Tres opciones en una fila (forma de pago) */
+  .entrega.tres { grid-template-columns: repeat(3, 1fr); }
+  .entrega.tres span { font-size: 13px; padding: 11px 4px; }
+  #bloqueCuotas[hidden] { display: none; }
   /* Campo trampa anti-spam: invisible para las personas */
   .trampa { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
   @media (max-width: 520px) { .registro .fila-doble { grid-template-columns: 1fr; } }
@@ -296,6 +305,17 @@
     <input class="campo-input" id="direccion" type="text" placeholder="Ej: Calle 5 # 3-20, Centro" autocomplete="street-address">
   </div>
 
+  <label class="campo">¿Cómo vas a pagar?</label>
+  <div class="entrega tres" role="radiogroup" aria-label="Forma de pago">
+    <label><input type="radio" name="pago" id="pagoContado" value="contado"><span>Contado</span></label>
+    <label><input type="radio" name="pago" id="pagoTransferencia" value="transferencia"><span>Transferencia</span></label>
+    <label><input type="radio" name="pago" id="pagoSistecredito" value="sistecredito"><span>Sistecrédito</span></label>
+  </div>
+  <div id="bloqueCuotas" hidden>
+    <label class="campo" for="cuotas">¿En cuántas cuotas?</label>
+    <input class="campo-input" id="cuotas" type="number" min="1" max="36" inputmode="numeric" placeholder="Ej: 6">
+  </div>
+
   <label class="campo" for="cumple">Fecha de cumpleaños</label>
   <input class="campo-input" id="cumple" type="date">
 
@@ -337,104 +357,151 @@
 
 <script>
 /* =========================================================
-   CONFIGURACIÓN
+   CONEXIÓN CON SUPABASE
+   Solo se usa la clave PUBLICABLE (es pública por diseño).
+   Productos, precios y domicilios vienen de la base de datos.
    ========================================================= */
-const CONFIG = {
-  negocio: 'Inizitech',
-  // Número de WhatsApp que recibe los pedidos: formato internacional,
-  // sin "+" ni espacios. Ej. Colombia: '573001234567'.
-  // Si se deja vacío, WhatsApp pedirá elegir el contacto.
-  whatsapp: '573045621589',   // +57 304 562 1589
-  // Costo del domicilio por municipio (COP). "Otro municipio" se confirma por WhatsApp.
-  domicilios: { 'Santo Tomás, Atlántico': 2000, 'Palmar de Varela, Atlántico': 3000, 'Sabana Grande, Atlántico': 4000 },
-  moneda: 'COP',
-  idioma: 'es-CO',
-  claveStorage: 'inizitech_pedido_v3'
+const SUPABASE = {
+  url: 'https://wzodisidcsvbsbdyzkty.supabase.co',
+  clave: 'sb_publishable_wfvzXf3aq5D4-nFyETP-EQ_qggvDj4B'
 };
 
-/* =========================================================
-   PRODUCTOS DE EJEMPLO
-   Sin fotos a propósito: el cliente elige más rápido leyendo el nombre.
-   - desc: texto corto opcional (puede dejarse '').
-   - top: true marca el producto con la etiqueta "Más pedido".
-   - masPedido: true lo muestra en la pestaña "Lo más pedido" (la vista inicial).
-   ========================================================= */
-const PRODUCTOS = [
-  // Catálogo (precios en COP). "antes": precio anterior tachado cuando el producto está en oferta.
-  // "top": etiqueta "Más pedido". "masPedido": aparece en la pestaña "Lo más pedido".
-  { id: 'airpods-pro-2', nombre: 'AirPods Pro 2',        desc: '', precio: 80000, antes: 100000, categoria: 'Audífonos', top: true, masPedido: true },
-  { id: 'airpods-pro',   nombre: 'AirPods Pro',          desc: 'Cancelación de ruido, graves profundos y batería de larga duración.', precio: 75000, antes: 100000, categoria: 'Audífonos' },
-  { id: 'airpods-pro-3', nombre: 'AirPods Pro 3',        desc: '', precio: 110000, categoria: 'Audífonos', masPedido: true },
-  { id: 'airpods-4',     nombre: 'AirPods 4',            desc: '', precio: 80000, categoria: 'Audífonos' },
-  { id: 'watch-ultra-8', nombre: 'Watch Ultra 8',        desc: '', precio: 65000, categoria: 'Relojes' },
-  { id: 'cargador-20w',  nombre: 'Cargador 20W-25W 1.1', desc: 'Carga rápida para iPhone: carga completa en 1 hora.', precio: 60000, categoria: 'Cargadores', masPedido: true },
-  { id: 'cargador-original-20-25', nombre: 'Cargador original 20-25W', desc: '', precio: 120000, categoria: 'Cargadores' },
-  { id: 'cubo-25w-11',   nombre: 'Cubo de 25 W 1.1', desc: '', precio: 35000, categoria: 'Cargadores' },
-  { id: 'cubo-25w-original', nombre: 'Cubo original 25W', desc: '', precio: 55000, categoria: 'Cargadores' },
-  { id: 'cable-lightning', nombre: 'Cable Lightning',    desc: '', precio: 20000, categoria: 'Cargadores', masPedido: true },
-  { id: 'cable-lightning-original', nombre: 'Cable Lightning original', desc: '', precio: 40000, categoria: 'Cargadores' },
-  { id: 'cable-usbc-original', nombre: 'Cable USB-C original', desc: '', precio: 45000, categoria: 'Cargadores' },
-  { id: 'cable-usbc-11', nombre: 'Cable USB-C 1.1',     desc: '', precio: 30000, categoria: 'Cargadores' },
-  { id: 'power-bank-pb-610', nombre: 'Power Bank PB-610 de 20.000', desc: '', precio: 75000, categoria: 'Accesorios' },
-  { id: 'fundas',        nombre: 'Fundas para celular',  desc: '', precio: 20000, categoria: 'Accesorios' },
-  // Combos: se venden como un solo producto con precio especial.
-  { id: 'combo-airpods-reloj',    nombre: 'Combo AirPods + reloj',            desc: 'Dos de nuestros productos más vendidos en un solo combo.', precio: 114999, antes: 145000, categoria: 'Combos' },
-  { id: 'combo-2-airpods-carg',   nombre: 'Combo 2 AirPods Pro 2 + cargador', desc: '2 AirPods Pro 2 y un cargador completo. Ideal para regalar o compartir.', precio: 134999, antes: 220000, categoria: 'Combos' },
-  { id: 'combo-flash-2-airpods',  nombre: 'Combo flash: 2 AirPods Pro 2',     desc: 'Llévate 2 AirPods Pro 2. Promoción por tiempo limitado.', precio: 109000, antes: 160000, categoria: 'Combos' },
-  { id: 'combo-full',             nombre: 'Combo full: AirPods + reloj + cargador', desc: 'Nuestro combo más completo: AirPods, reloj y cargador.', precio: 139999, antes: 205000, categoria: 'Combos' },
-  { id: 'combo-2-relojes',        nombre: 'Combo 2 relojes',                  desc: '2 Watch Ultra 8 en un solo combo.', precio: 110000, antes: 130000, categoria: 'Combos', masPedido: true }
+const CONFIG = {
+  negocio: 'Inizitech',
+  // Número que recibe los pedidos (formato internacional, sin "+").
+  whatsapp: '573045621589',
+  moneda: 'COP',
+  idioma: 'es-CO',
+  // Si la base tarda más de este tiempo, WhatsApp se abre igual con el pedido en texto.
+  tiempoMaxMs: 4000,
+  claveStorage: 'inizitech_pedido_v4'
+};
+
+// Pestañas de la página. "destacados" = "Lo más pedido" (campo destacado en la base).
+const VISTAS = [
+  { id: 'destacados', nombre: 'Lo más pedido' },
+  { id: 'combos', nombre: 'Combos' },
+  { id: 'audifonos', nombre: 'Audífonos' },
+  { id: 'relojes', nombre: 'Relojes' },
+  { id: 'cargadores', nombre: 'Cargadores' },
+  { id: 'accesorios', nombre: 'Accesorios' }
 ];
 
-/* =========================================================
-   ESTADO
-   ========================================================= */
-const estado = { categoria: 'Lo más pedido', busqueda: '', carrito: {} }; // carrito: { id: cantidad }
-// Orden de las pestañas. 'Lo más pedido' es la vista inicial.
-const CATEGORIAS = ['Lo más pedido', 'Combos', 'Audífonos', 'Relojes', 'Cargadores', 'Accesorios'];
+const NOMBRE_PAGO = { contado: 'Contado', transferencia: 'Transferencia', sistecredito: 'Sistecrédito' };
+
+const estado = {
+  productos: [],     // catálogo que llega de la base
+  zonas: {},         // domicilio por municipio, desde la base: { 'Santo Tomás, Atlántico': 2000, ... }
+  vista: 'destacados',
+  busqueda: '',
+  carrito: {},       // { idProducto: cantidad }
+  opciones: {},      // { idProducto: { clave: valor } }  (color, modelo de celular…)
+  cargando: true,
+  error: false
+};
 
 const $ = (s) => document.querySelector(s);
-const porId = Object.fromEntries(PRODUCTOS.map(p => [p.id, p]));
 const fmt = new Intl.NumberFormat(CONFIG.idioma, { style: 'currency', currency: CONFIG.moneda, maximumFractionDigits: 0 });
 const dinero = (n) => fmt.format(n);
-// Quita acentos y mayúsculas para que la búsqueda sea tolerante
 const normalizar = (t) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-const escapar = (s) => s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const escapar = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const utm = (k) => new URLSearchParams(location.search).get(k) || null;
+const porId = () => Object.fromEntries(estado.productos.map(p => [p.id, p]));
+
+// Llamada a la base (API REST de Supabase)
+async function llamar(ruta, { metodo = 'GET', cuerpo, tiempoMs } = {}) {
+  const ctrl = new AbortController();
+  const timer = tiempoMs ? setTimeout(() => ctrl.abort(), tiempoMs) : null;
+  try {
+    const r = await fetch(SUPABASE.url + ruta, {
+      method: metodo,
+      headers: { apikey: SUPABASE.clave, Authorization: 'Bearer ' + SUPABASE.clave, 'Content-Type': 'application/json' },
+      body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+      signal: ctrl.signal
+    });
+    const texto = await r.text();
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return texto ? JSON.parse(texto) : null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 /* =========================================================
-   GUARDADO LOCAL (para no perder el pedido al recargar)
+   CARGA DEL CATÁLOGO Y DOMICILIOS (desde la base)
+   ========================================================= */
+async function cargarCatalogo() {
+  estado.cargando = true; estado.error = false;
+  renderLista();
+  try {
+    const [productos, zonas] = await Promise.all([
+      llamar('/rest/v1/productos_publicos?select=id,slug,nombre,descripcion,categoria,precio,precio_antes,opciones,es_combo,destacado,orden' +
+             '&order=es_combo.desc,destacado.desc,orden.asc,nombre.asc'),
+      llamar('/rest/v1/zonas_domicilio?select=municipio,costo&activo=eq.true&order=municipio.asc')
+    ]);
+    estado.productos = productos.map(p => ({
+      id: p.id, slug: p.slug, nombre: p.nombre, desc: p.descripcion || '',
+      precio: p.precio, antes: p.precio_antes, categoria: p.categoria,
+      combo: p.es_combo, destacado: p.destacado, opciones: p.opciones || []
+    }));
+    estado.zonas = Object.fromEntries(zonas.map(z => [z.municipio, z.costo]));
+    estado.cargando = false;
+    llenarMunicipios();
+    restaurar();
+  } catch (e) {
+    estado.cargando = false; estado.error = true;
+  }
+  renderCategorias(); renderLista(); renderTotal();
+}
+
+/* =========================================================
+   GUARDADO EN EL NAVEGADOR (para no perder el pedido al recargar)
    ========================================================= */
 function guardar() {
-  try { localStorage.setItem(CONFIG.claveStorage, JSON.stringify({ carrito: estado.carrito, nombre: $('#nombre').value })); }
-  catch (e) { /* almacenamiento no disponible: no pasa nada */ }
+  try {
+    localStorage.setItem(CONFIG.claveStorage, JSON.stringify({
+      carrito: estado.carrito, opciones: estado.opciones,
+      nombre: $('#nombre').value, celular: $('#celular').value
+    }));
+  } catch (e) { /* sin almacenamiento: no pasa nada */ }
 }
-function cargar() {
+function restaurar() {
   try {
     const d = JSON.parse(localStorage.getItem(CONFIG.claveStorage) || '{}');
-    for (const [id, c] of Object.entries(d.carrito || {})) if (porId[id] && c > 0) estado.carrito[id] = c;
+    const ids = new Set(estado.productos.map(p => p.id));
+    for (const [id, c] of Object.entries(d.carrito || {})) if (ids.has(id) && c > 0) estado.carrito[id] = c;
+    for (const [id, o] of Object.entries(d.opciones || {})) if (ids.has(id)) estado.opciones[id] = o;
     if (d.nombre) $('#nombre').value = d.nombre;
-  } catch (e) { /* datos corruptos: se ignoran */ }
+    if (d.celular) $('#celular').value = d.celular;
+  } catch (e) { /* datos guardados dañados: se ignoran */ }
 }
 
 /* =========================================================
-   RENDER: categorías
+   RENDER: pestañas y lista de productos
    ========================================================= */
 function renderCategorias() {
-  $('#categorias').innerHTML = CATEGORIAS.map(c =>
-    `<button class="cat ${c === estado.categoria ? 'activa' : ''}" data-cat="${c}">${c}</button>`).join('');
+  $('#categorias').innerHTML = VISTAS.map(v =>
+    `<button class="cat ${v.id === estado.vista ? 'activa' : ''}" data-vista="${v.id}">${v.nombre}</button>`).join('');
 }
 
-/* =========================================================
-   RENDER: lista de productos
-   ========================================================= */
+function enVista(p, vista) {
+  if (vista === 'destacados') return p.destacado;
+  if (vista === 'combos') return p.categoria === 'combos';
+  return p.categoria === vista;
+}
+
 function htmlProducto(p) {
   const cant = estado.carrito[p.id] || 0;
+  const valores = estado.opciones[p.id] || {};
+  const campos = p.opciones.map(o => `
+      <label class="campo" for="op-${p.id}-${escapar(o.clave)}">${escapar(o.etiqueta)}</label>
+      <input class="campo-input opcion" id="op-${p.id}-${escapar(o.clave)}" data-clave="${escapar(o.clave)}"
+             type="text" maxlength="80" value="${escapar(valores[o.clave] || '')}" placeholder="${escapar(o.etiqueta)}">`).join('');
   return `
-  <article class="producto ${p.top ? 'top' : ''} ${cant ? 'seleccionado' : ''}" data-id="${p.id}"
-           role="checkbox" aria-checked="${cant > 0}" tabindex="0">
-    ${p.top ? '<span class="etiqueta-top">🔥 MÁS PEDIDO</span>' : ''}
+  <article class="producto ${cant ? 'seleccionado' : ''}" data-id="${p.id}" role="checkbox" aria-checked="${cant > 0}" tabindex="0">
     <div>
-      <div class="nombre">${p.nombre}</div>
-      ${p.desc ? `<div class="desc">${p.desc}</div>` : ''}
+      <div class="nombre">${escapar(p.nombre)}</div>
+      ${p.desc ? `<div class="desc">${escapar(p.desc)}</div>` : ''}
       <div class="precio">${dinero(p.precio)}${p.antes ? ` <s>${dinero(p.antes)}</s>` : ''}</div>
     </div>
     <div class="check">${cant ? '✓' : ''}</div>
@@ -442,28 +509,34 @@ function htmlProducto(p) {
       <span>Cantidad</span>
       <div class="stepper">
         <button data-accion="restar" aria-label="Quitar uno">−</button>
-        <input type="number" min="1" inputmode="numeric" value="${cant || 1}" aria-label="Cantidad de ${p.nombre}">
+        <input type="number" min="1" max="10" inputmode="numeric" value="${cant || 1}" aria-label="Cantidad de ${escapar(p.nombre)}">
         <button data-accion="sumar" aria-label="Agregar uno">+</button>
       </div>
     </div>
+    ${p.opciones.length ? `<div class="opciones">${campos}</div>` : ''}
   </article>`;
 }
 
 function renderLista() {
+  const cont = $('#lista');
+  if (estado.cargando) { cont.innerHTML = '<p class="sin-resultados">Cargando productos…</p>'; return; }
+  if (estado.error) {
+    cont.innerHTML = '<p class="sin-resultados">No pudimos cargar los productos.<br>' +
+      '<button class="cat activa" id="reintentar">Intentar de nuevo</button></p>';
+    $('#reintentar').addEventListener('click', cargarCatalogo);
+    return;
+  }
   const q = normalizar(estado.busqueda.trim());
-  // Con búsqueda se busca en todo el catálogo; sin búsqueda solo se muestra la pestaña activa
-  const visibles = PRODUCTOS.filter(p => {
-    if (q) return normalizar(p.nombre + ' ' + (p.desc || '')).includes(q);
-    if (estado.categoria === 'Lo más pedido') return p.masPedido;
-    return p.categoria === estado.categoria;
-  });
-
-  $('#lista').innerHTML = visibles.length
+  // Con búsqueda se revisa todo el catálogo; sin búsqueda, solo la pestaña activa
+  const visibles = estado.productos.filter(p => q
+    ? normalizar(p.nombre + ' ' + p.desc).includes(q)
+    : enVista(p, estado.vista));
+  cont.innerHTML = visibles.length
     ? visibles.map(htmlProducto).join('')
-    : `<p class="sin-resultados">No encontramos "<b>${escapar(estado.busqueda)}</b>". Prueba con otra palabra.</p>`;
+    : `<p class="sin-resultados">${q ? `No encontramos "<b>${escapar(estado.busqueda)}</b>".` : 'No hay productos en esta categoría.'}</p>`;
 }
 
-/* Actualiza solo una fila (más rápido y no mueve el scroll) */
+// Actualiza solo una fila (no mueve el scroll)
 function actualizarFila(id) {
   const fila = document.querySelector(`.producto[data-id="${id}"]`);
   if (!fila) return;
@@ -476,28 +549,39 @@ function actualizarFila(id) {
 }
 
 /* =========================================================
-   RENDER: total y botón de WhatsApp
+   TOTALES Y DOMICILIO
    ========================================================= */
-function lineas() {
-  return Object.entries(estado.carrito).map(([id, cant]) => ({ p: porId[id], cant, sub: porId[id].precio * cant }));
+const esDomicilio = () => document.querySelector('input[name="entrega"]:checked').value === 'domicilio';
+
+// Costo del domicilio: número, 0 si no aplica, o null si se confirma por WhatsApp ("Otro")
+function costoDomicilio(muni) {
+  if (!muni) return 0;
+  if (muni === 'Otro') return null;
+  return estado.zonas[muni] ?? 0;
 }
+
+function lineas() {
+  const pid = porId();
+  return Object.entries(estado.carrito)
+    .filter(([id, c]) => c > 0 && pid[id])
+    .map(([id, cant]) => ({ p: pid[id], cant, sub: pid[id].precio * cant }));
+}
+
 function renderTotal() {
   const ls = lineas();
   const unidades = ls.reduce((s, l) => s + l.cant, 0);
   const subtotal = ls.reduce((s, l) => s + l.sub, 0);
   const hay = ls.length > 0;
-  // Domicilio según el municipio elegido (si es "Otro", se confirma por WhatsApp)
-  const muni = $('#municipio').value;
-  const dom = esDomicilio() && muni ? domicilioDe(muni) : null;
+  const muni = esDomicilio() ? $('#municipio').value : '';
+  const dom = esDomicilio() && muni ? costoDomicilio(muni) : 0;
   const total = subtotal + (dom || 0);
+
   const linea = $('#lineaDomicilio');
   if (!esDomicilio()) { linea.hidden = false; linea.textContent = 'Pasar a recoger: sin costo de domicilio'; }
   else if (!muni) { linea.hidden = true; }
   else {
     linea.hidden = false;
-    linea.textContent = dom !== null
-      ? `Domicilio a ${muni}: ${dinero(dom)}`
-      : 'Domicilio: lo confirmamos contigo por WhatsApp';
+    linea.textContent = dom === null ? 'Domicilio: lo confirmamos contigo por WhatsApp' : `Domicilio a ${muni}: ${dinero(dom)}`;
   }
 
   $('#resumenTotal').hidden = !hay;
@@ -508,24 +592,195 @@ function renderTotal() {
   $('#textoBoton').textContent = hay ? `Pedir por WhatsApp · ${dinero(total)}` : 'Selecciona un producto para pedir';
 }
 
+function llenarMunicipios() {
+  $('#municipio').innerHTML = '<option value="">Elige tu municipio</option>' +
+    Object.keys(estado.zonas).map(m => `<option>${escapar(m)}</option>`).join('') +
+    '<option value="Otro">Otro municipio (lo confirmamos por WhatsApp)</option>';
+}
+
 /* =========================================================
-   ACCIONES
+   ACCIONES SOBRE EL CARRITO
    ========================================================= */
 function fijar(id, cantidad) {
-  const c = Math.max(0, Math.min(999, Math.floor(Number(cantidad) || 0)));
+  const c = Math.max(0, Math.min(10, Math.floor(Number(cantidad) || 0)));
   if (c) estado.carrito[id] = c; else delete estado.carrito[id];
   actualizarFila(id); renderTotal(); guardar();
 }
-// Tocar la fila alterna: si no está elegido lo agrega con 1, si ya está lo quita
 const alternar = (id) => fijar(id, estado.carrito[id] ? 0 : 1);
 
-/* Texto del pedido que se envía por WhatsApp */
+/* =========================================================
+   VALIDACIÓN Y ARMADO DEL PEDIDO
+   ========================================================= */
+function normalizarCelular(t) {
+  const d = String(t || '').replace(/\D/g, '');
+  if (/^3\d{9}$/.test(d)) return d;
+  if (/^573\d{9}$/.test(d)) return d.slice(2);
+  return null;
+}
+
+// Revisa los datos antes de enviar. Devuelve los datos limpios, o null si falta algo.
+function validarPedido() {
+  const dom = esDomicilio();
+  const pago = document.querySelector('input[name="pago"]:checked');
+  const d = {
+    nombre: $('#nombre').value.trim(),
+    celular: $('#celular').value.trim(),
+    entrega: dom ? 'domicilio' : 'recoger',
+    municipio: dom ? $('#municipio').value : '',
+    direccion: dom ? $('#direccion').value.trim() : '',
+    cumple: $('#cumple').value,
+    correo: $('#correo').value.trim().toLowerCase(),
+    notas: $('#notas').value.trim(),
+    pago: pago ? pago.value : '',
+    cuotas: $('#cuotas').value ? Number($('#cuotas').value) : null,
+    autoriza: $('#autoriza').checked
+  };
+  const falla = (campo, msg) => { aviso(msg); const el = $('#' + campo); if (el && el.focus) el.focus(); return null; };
+  if (!d.nombre) return falla('nombre', 'Escribe tu nombre');
+  if (!normalizarCelular(d.celular)) return falla('celular', 'Celular colombiano de 10 dígitos');
+  if (dom && !d.municipio) return falla('municipio', 'Elige tu municipio');
+  if (dom && d.direccion.length < 5) return falla('direccion', 'Escribe la dirección de entrega');
+  if (!d.cumple) return falla('cumple', 'Escribe tu fecha de cumpleaños');
+  if (!d.correo) return falla('correo', 'Escribe tu correo');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.correo)) return falla('correo', 'El correo no parece válido');
+  if (!d.pago) return falla('pagoContado', 'Elige cómo vas a pagar');
+  if (d.pago === 'sistecredito' && (!d.cuotas || d.cuotas < 1 || d.cuotas > 36)) return falla('cuotas', 'Escribe las cuotas (de 1 a 36)');
+  if (!d.autoriza) return falla('autoriza', 'Debes autorizar el tratamiento de tus datos');
+  return d;
+}
+
+// Productos del pedido con sus opciones. Devuelve null si falta alguna opción obligatoria.
+function itemsPedido() {
+  const items = [];
+  for (const l of lineas()) {
+    const vals = estado.opciones[l.p.id] || {};
+    const spec = {};
+    for (const o of l.p.opciones) {
+      const v = String(vals[o.clave] || '').trim();
+      if (!v && o.obligatoria) { aviso(`Falta: ${o.etiqueta} (${l.p.nombre})`); return null; }
+      if (v) spec[o.clave] = v;
+    }
+    items.push({ slug: l.p.slug, cantidad: l.cant, especificaciones: spec, _nombre: l.p.nombre, _spec: spec, _sub: l.sub });
+  }
+  return items;
+}
+
+// Cuerpo que recibe la función crear_pedido de la base
+function cuerpoRpc(d, items) {
+  return {
+    p_nombre: d.nombre,
+    p_celular: d.celular,
+    p_email: d.correo,
+    p_fecha_nacimiento: d.cumple,
+    p_entrega: d.entrega,
+    p_municipio: d.entrega === 'domicilio' ? d.municipio : null,
+    p_direccion: d.entrega === 'domicilio' ? d.direccion : null,
+    p_forma_pago: d.pago,
+    p_items: items.map(i => ({ slug: i.slug, cantidad: i.cantidad, especificaciones: i.especificaciones })),
+    p_autoriza_datos: d.autoriza,
+    p_notas: d.notas || null,
+    p_cuotas: d.pago === 'sistecredito' ? d.cuotas : null,
+    p_codigo_descuento: null,
+    p_utm_source: utm('utm_source'),
+    p_utm_medium: utm('utm_medium'),
+    p_utm_content: utm('utm_content'),
+    p_canal: 'pagina',
+    p_website: null
+  };
+}
+
+// Texto del mensaje de WhatsApp. Con "numero" = pedido ya guardado en la base.
+function textoWhatsapp(d, items, total, numero) {
+  let t = numero
+    ? `¡Hola ${CONFIG.negocio}! 👋 Quiero confirmar mi pedido ${numero}:\n\n`
+    : `¡Hola ${CONFIG.negocio}! 👋 Quiero hacer este pedido:\n\n`;
+  items.forEach(i => {
+    const esp = Object.values(i._spec).length ? ` (${Object.values(i._spec).join(', ')})` : '';
+    t += `• ${i.cantidad} x ${i._nombre}${esp} — ${dinero(i._sub)}\n`;
+  });
+  t += `\n*Total: ${dinero(total)}*`;
+  if (d.entrega === 'recoger') {
+    t += `\nEntrega: pasar a recoger`;
+  } else {
+    const zona = d.municipio === 'Otro' ? 'otro municipio (domicilio por confirmar)' : d.municipio;
+    t += `\nEntrega en: ${zona}\nDirección: ${d.direccion}`;
+  }
+  if (d.nombre) t += `\nA nombre de: ${d.nombre}`;
+  t += `\nPago: ${NOMBRE_PAGO[d.pago]}${d.pago === 'sistecredito' ? ` a ${d.cuotas} cuotas` : ''}`;
+  if (d.notas) t += `\nNota: ${d.notas}`;
+  return t;
+}
+
+// Abre WhatsApp en la ventana que ya se abrió al tocar el botón (evita el bloqueo de ventanas)
+function abrirWhatsapp(ventana, texto) {
+  const url = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(texto)}`;
+  if (ventana && !ventana.closed) ventana.location.href = url;
+  else window.open(url, '_blank', 'noopener');
+}
+
+// Respaldo si la base no responde: copia del pedido en Netlify (sin esperar)
+function guardarPedidoNetlify(d, texto) {
+  const cuerpo = new URLSearchParams({
+    'form-name': 'pedidos', website: '', nombre: d.nombre,
+    celular: '+57' + normalizarCelular(d.celular), entrega: d.entrega,
+    municipio: d.municipio, direccion: d.direccion, fecha_nacimiento: d.cumple,
+    email: d.correo, notas: d.notas, pedido: texto
+  });
+  fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+               body: cuerpo.toString(), keepalive: true }).catch(() => {});
+}
+
+// Botón "Pedir por WhatsApp": guarda el pedido en la base y abre WhatsApp con el número
+async function enviarPedido() {
+  if (!lineas().length) return;
+  const d = validarPedido(); if (!d) return;
+  const items = itemsPedido(); if (!items) return;
+
+  // Se abre la ventana ya, dentro del clic, para que el celular no la bloquee
+  const ventana = window.open('about:blank', '_blank');
+  const boton = $('#btnWhatsapp');
+  boton.disabled = true; $('#textoBoton').textContent = 'Enviando tu pedido…';
+  const subtotal = items.reduce((s, i) => s + i._sub, 0);
+  const dom = d.entrega === 'domicilio' ? costoDomicilio(d.municipio) : 0;
+
+  try {
+    const res = await llamar('/rest/v1/rpc/crear_pedido', { metodo: 'POST', cuerpo: cuerpoRpc(d, items), tiempoMs: CONFIG.tiempoMaxMs });
+    if (!res || res.ok !== true) {
+      // La base rechazó el pedido: no se abre WhatsApp y se muestra por qué
+      if (ventana) ventana.close();
+      aviso(res && res.mensaje ? res.mensaje : 'No pudimos registrar el pedido. Intenta de nuevo.');
+      return;
+    }
+    abrirWhatsapp(ventana, textoWhatsapp(d, items, res.total, res.numero));
+    aviso(`Pedido ${res.numero} registrado ✔`);
+    // Pedido listo: se limpia para que no se repita
+    estado.carrito = {}; estado.opciones = {};
+    $('#notas').value = '';
+    ids().forEach(actualizarFila);
+    renderTotal(); guardar();
+  } catch (e) {
+    // Si la base no responde: WhatsApp se abre igual, con el pedido en texto (sin número)
+    const texto = textoWhatsapp(d, items, subtotal + (dom || 0), null);
+    abrirWhatsapp(ventana, texto);
+    guardarPedidoNetlify(d, texto);
+  } finally {
+    boton.disabled = false;
+    renderTotal();
+  }
+}
+
+// Ids de todas las tarjetas que se ven (para refrescarlas tras un pedido)
+const ids = () => [...document.querySelectorAll('.producto')].map(f => f.dataset.id);
+
+// Botón "o copia el pedido como texto"
 async function copiar() {
-  const d = validarPedido();
-  if (!d) return;
-  const t = textoPedido(d);
+  const d = validarPedido(); if (!d) return;
+  const items = itemsPedido(); if (!items) return;
+  const subtotal = items.reduce((s, i) => s + i._sub, 0);
+  const dom = d.entrega === 'domicilio' ? costoDomicilio(d.municipio) : 0;
+  const t = textoWhatsapp(d, items, subtotal + (dom || 0), null);
   try { await navigator.clipboard.writeText(t); }
-  catch (e) { // alternativa si el navegador bloquea el portapapeles (ej. al abrir el archivo local)
+  catch (e) {
     const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta);
     ta.select(); document.execCommand('copy'); ta.remove();
   }
@@ -535,33 +790,37 @@ async function copiar() {
 let tAviso;
 function aviso(m) {
   const el = $('#toast'); el.textContent = m; el.classList.add('visible');
-  clearTimeout(tAviso); tAviso = setTimeout(() => el.classList.remove('visible'), 1600);
+  clearTimeout(tAviso); tAviso = setTimeout(() => el.classList.remove('visible'), 2200);
 }
 
 /* =========================================================
-   EVENTOS (delegados: funcionan aunque la lista se redibuje)
+   EVENTOS
    ========================================================= */
 $('#lista').addEventListener('click', (e) => {
   const fila = e.target.closest('.producto'); if (!fila) return;
   const id = fila.dataset.id;
   const btn = e.target.closest('[data-accion]');
   if (btn) { fijar(id, (estado.carrito[id] || 0) + (btn.dataset.accion === 'sumar' ? 1 : -1)); return; }
-  if (e.target.closest('.cantidad')) return;   // clic dentro del selector: no alternar
+  if (e.target.closest('.cantidad') || e.target.closest('.opciones')) return;
   alternar(id);
 });
-// Teclado: Espacio/Enter sobre una fila la selecciona
+// Teclado: Espacio o Enter sobre una tarjeta la selecciona
 $('#lista').addEventListener('keydown', (e) => {
   if (e.target.classList.contains('producto') && (e.key === ' ' || e.key === 'Enter')) {
     e.preventDefault(); alternar(e.target.dataset.id);
   }
   if (e.target.matches('.stepper input') && e.key === 'Enter') e.target.blur();
 });
-// Escribir la cantidad directamente
+// Escribir cantidad o colores/modelos
 $('#lista').addEventListener('input', (e) => {
-  if (!e.target.matches('.stepper input') || e.target.value === '') return;
-  fijar(e.target.closest('.producto').dataset.id, e.target.value);
+  const fila = e.target.closest('.producto'); if (!fila) return;
+  if (e.target.matches('.opcion')) {
+    const id = fila.dataset.id;
+    estado.opciones[id] = { ...(estado.opciones[id] || {}), [e.target.dataset.clave]: e.target.value };
+    guardar(); return;
+  }
+  if (e.target.matches('.stepper input') && e.target.value !== '') fijar(fila.dataset.id, e.target.value);
 });
-// Al salir del campo, si quedó vacío o en 0 se quita el producto
 $('#lista').addEventListener('focusout', (e) => {
   if (e.target.matches('.stepper input')) {
     const id = e.target.closest('.producto').dataset.id;
@@ -570,114 +829,31 @@ $('#lista').addEventListener('focusout', (e) => {
 });
 
 $('#categorias').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-cat]'); if (!b) return;
-  estado.categoria = b.dataset.cat; renderCategorias(); renderLista();
+  const b = e.target.closest('[data-vista]'); if (!b) return;
+  estado.vista = b.dataset.vista; estado.busqueda = ''; $('#buscar').value = '';
+  renderCategorias(); renderLista();
 });
 $('#buscar').addEventListener('input', (e) => { estado.busqueda = e.target.value; renderLista(); });
-$('#btnWhatsapp').addEventListener('click', enviarWhatsapp);
+$('#btnWhatsapp').addEventListener('click', enviarPedido);
 $('#btnCopiar').addEventListener('click', copiar);
 $('#nombre').addEventListener('input', guardar);
+$('#celular').addEventListener('input', guardar);
 $('#municipio').addEventListener('change', renderTotal);
 document.querySelectorAll('input[name="entrega"]').forEach(r => r.addEventListener('change', () => {
   $('#bloqueDomicilio').hidden = !esDomicilio();
   renderTotal();
 }));
+document.querySelectorAll('input[name="pago"]').forEach(r => r.addEventListener('change', () => {
+  $('#bloqueCuotas').hidden = document.querySelector('input[name="pago"]:checked').value !== 'sistecredito';
+}));
 
 /* =========================================================
    INICIO
    ========================================================= */
-// Con pocos productos el buscador sobra: se oculta para ir directo a elegir
-if (PRODUCTOS.length < 8) $('#buscar').hidden = true;
-// ---- Helpers del pedido ----
-function normalizarCelular(t) {
-  const d = String(t || '').replace(/\D/g, '');
-  if (/^3\d{9}$/.test(d)) return d;
-  if (/^573\d{9}$/.test(d)) return d.slice(2);
-  return null;
-}
-// Llena el selector de municipios desde CONFIG (una sola fuente)
-function llenarMunicipios() {
-  const sel = $('#municipio');
-  Object.keys(CONFIG.domicilios).forEach(m => sel.insertAdjacentHTML('beforeend', `<option>${m}</option>`));
-  sel.insertAdjacentHTML('beforeend', '<option value="Otro">Otro municipio (lo confirmamos por WhatsApp)</option>');
-}
-// ¿El cliente eligió domicilio? (si no, es recoger en tienda)
-const esDomicilio = () => document.querySelector('input[name="entrega"]:checked').value === 'domicilio';
-// Costo del domicilio: número, o null si se confirma por WhatsApp
-const domicilioDe = (muni) => CONFIG.domicilios[muni] ?? null;
-
-// Revisa los datos antes de enviar. Devuelve los datos limpios, o null si falta algo.
-function validarPedido() {
-  const dom = esDomicilio();
-  const d = {
-    nombre: $('#nombre').value.trim(),
-    celular: $('#celular').value.trim(),
-    entrega: dom ? 'domicilio' : 'recoger',
-    municipio: dom ? $('#municipio').value : '',
-    direccion: dom ? $('#direccion').value.trim() : '',
-    fecha_nacimiento: $('#cumple').value,
-    email: $('#correo').value.trim().toLowerCase(),
-    notas: $('#notas').value.trim(),
-    autoriza: $('#autoriza').checked
-  };
-  const falla = (campo, msg) => { aviso(msg); $('#' + campo).focus(); return null; };
-  if (!d.nombre) return falla('nombre', 'Escribe tu nombre');
-  if (!normalizarCelular(d.celular)) return falla('celular', 'Celular colombiano de 10 dígitos');
-  if (dom && !d.municipio) return falla('municipio', 'Elige tu municipio');
-  if (dom && !d.direccion) return falla('direccion', 'Escribe la dirección de entrega');
-  if (!d.fecha_nacimiento) return falla('cumple', 'Escribe tu fecha de cumpleaños');
-  if (!d.email) return falla('correo', 'Escribe tu correo');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) return falla('correo', 'El correo no parece válido');
-  if (!d.autoriza) return falla('autoriza', 'Debes autorizar el tratamiento de tus datos');
-  return d;
-}
-
-// Guarda una copia del pedido en Netlify. No espera la respuesta: WhatsApp se abre igual.
-function guardarPedidoNetlify(d, texto) {
-  const cuerpo = new URLSearchParams({
-    'form-name': 'pedidos', website: '', nombre: d.nombre,
-    celular: '+57' + normalizarCelular(d.celular), entrega: d.entrega, municipio: d.municipio,
-    direccion: d.direccion, fecha_nacimiento: d.fecha_nacimiento,
-    email: d.email, notas: d.notas, pedido: texto
-  });
-  fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-               body: cuerpo.toString(), keepalive: true }).catch(() => {});
-}
-
-// Texto del pedido para WhatsApp (con domicilio y total)
-function textoPedido(d) {
-  const ls = lineas();
-  const subtotal = ls.reduce((s, l) => s + l.sub, 0);
-  const dom = d.entrega === 'domicilio' ? domicilioDe(d.municipio) : 0;
-  let t = `¡Hola ${CONFIG.negocio}! 👋 Quiero hacer este pedido:\n\n`;
-  ls.forEach(({ p, cant, sub }) => { t += `• ${cant} x ${p.nombre} — ${dinero(sub)}\n`; });
-  t += `\n*Total: ${dinero(subtotal + (dom || 0))}*`;
-  if (d.entrega === 'recoger') {
-    t += `\nEntrega: pasar a recoger`;
-  } else {
-    const zona = d.municipio === 'Otro' ? 'otro municipio (domicilio por confirmar)' : d.municipio;
-    t += `\nEntrega en: ${zona}`;
-  }
-  if (d.nombre) t += `\n\nA nombre de: ${d.nombre}`;
-  if (d.entrega === 'domicilio') t += `\nDirección de entrega: ${d.direccion}`;
-  if (d.notas) t += `\nNota: ${d.notas}`;
-  return t;
-}
-
-function enviarWhatsapp() {
-  if (!lineas().length) return;
-  const d = validarPedido();
-  if (!d) return;
-  const texto = textoPedido(d);
-  guardarPedidoNetlify(d, texto);
-  window.open(`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(texto)}`, '_blank', 'noopener');
-}
-
-llenarMunicipios();
-cargar();
 renderCategorias();
 renderLista();
 renderTotal();
+cargarCatalogo();
 </script>
 
 <!--
