@@ -307,7 +307,7 @@
 
   <label class="campo">¿Cómo vas a pagar?</label>
   <div class="entrega tres" role="radiogroup" aria-label="Forma de pago">
-    <label><input type="radio" name="pago" id="pagoContado" value="contado"><span>Contado</span></label>
+    <label><input type="radio" name="pago" id="pagoContado" value="contado"><span>Efectivo</span></label>
     <label><input type="radio" name="pago" id="pagoTransferencia" value="transferencia"><span>Transferencia</span></label>
     <label><input type="radio" name="pago" id="pagoSistecredito" value="sistecredito"><span>Sistecrédito</span></label>
   </div>
@@ -370,6 +370,8 @@ const CONFIG = {
   negocio: 'Inizitech',
   // Número que recibe los pedidos (formato internacional, sin "+").
   whatsapp: '573045621589',
+  // Producto que lleva la etiqueta "🔥 MÁS PEDIDO" (cambia el slug si cambia tu más vendido)
+  masVendidoSlug: 'airpods-pro-2',
   moneda: 'COP',
   idioma: 'es-CO',
   // Si la base tarda más de este tiempo, WhatsApp se abre igual con el pedido en texto.
@@ -387,7 +389,7 @@ const VISTAS = [
   { id: 'accesorios', nombre: 'Accesorios' }
 ];
 
-const NOMBRE_PAGO = { contado: 'Contado', transferencia: 'Transferencia', sistecredito: 'Sistecrédito' };
+const NOMBRE_PAGO = { contado: 'Efectivo', transferencia: 'Transferencia', sistecredito: 'Sistecrédito' };
 
 const estado = {
   productos: [],     // catálogo que llega de la base
@@ -498,7 +500,8 @@ function htmlProducto(p) {
       <input class="campo-input opcion" id="op-${p.id}-${escapar(o.clave)}" data-clave="${escapar(o.clave)}"
              type="text" maxlength="80" value="${escapar(valores[o.clave] || '')}" placeholder="${escapar(o.etiqueta)}">`).join('');
   return `
-  <article class="producto ${cant ? 'seleccionado' : ''}" data-id="${p.id}" role="checkbox" aria-checked="${cant > 0}" tabindex="0">
+  <article class="producto ${p.slug === CONFIG.masVendidoSlug ? 'top' : ''} ${cant ? 'seleccionado' : ''}" data-id="${p.id}" role="checkbox" aria-checked="${cant > 0}" tabindex="0">
+    ${p.slug === CONFIG.masVendidoSlug ? '<span class="etiqueta-top">🔥 MÁS PEDIDO</span>' : ''}
     <div>
       <div class="nombre">${escapar(p.nombre)}</div>
       ${p.desc ? `<div class="desc">${escapar(p.desc)}</div>` : ''}
