@@ -673,7 +673,7 @@ values
    'cargadores', 60000, null, '[]', false, false, 300),
   ('cargador-original-20-25', 'Cargador original 20-25W', null,
    'cargadores', 120000, null, '[]', false, false, 305),
-  ('cubo-25w-11', 'Cubo de 25 Watts 1.1', null,
+  ('cubo-25w-11', 'Cubo de 25 W 1.1', null,
    'cargadores', 35000, null, '[]', false, false, 310),
   ('cubo-25w-original', 'Cubo original 25W', null,
    'cargadores', 55000, null, '[]', false, false, 315),
