@@ -1,97 +1,145 @@
 ---
 name: pedidos-whatsapp-con-base-de-datos
-description: Implementar un sistema de pedidos para una tienda pequeña con página de pedidos, base de datos en Supabase, publicación en Netlify desde GitHub, alertas y botones por Telegram, garantías, integración con Shopify y respuestas en WhatsApp Business. Usar cuando un negocio copia pedidos a mano desde WhatsApp, cobra por varias formas de pago, quiere precios y domicilios desde una sola fuente, o pide un sistema de pedidos sin servidor propio.
+description: Método para montar un sistema de pedidos para una tienda pequeña que hoy copia pedidos a mano desde WhatsApp, Instagram o Shopify. Incluye página de pedidos, base de datos en Supabase como fuente única, alertas y confirmación de pago por Telegram, garantías, y respuestas en WhatsApp Business, sin servidor propio. Usar cuando el negocio pierde tiempo copiando pedidos, tiene precios o domicilios en varios lugares, o no sabe cuánto vende ni qué clientes faltan por comprar.
 ---
 
 # Sistema de pedidos con base de datos, alertas y garantías
 
-## Cuándo usar esta skill
-- El negocio recibe pedidos por WhatsApp, Instagram, TikTok o una tienda Shopify y los copia a mano.
-- Los precios y domicilios cambian y hay que actualizarlos en varios lugares.
-- Se quiere saber cuánto se vende, con qué margen y qué clientes faltan por comprar.
-- Se quiere confirmar pagos y llevar garantías sin servidor propio.
+## 1. El problema que resuelve
 
-No usar cuando el negocio necesita facturación electrónica, inventario real o integración con un ERP. Eso requiere otro diseño.
+Muchas tiendas pequeñas venden por WhatsApp, Instagram o TikTok, y el pedido pasa por las manos de la dueña varias veces:
 
-## Piezas del sistema
-| Pieza | Herramienta | Función |
+- Le escriben el pedido en un chat. Ella lo copia a una hoja, a una nota o a la memoria.
+- El precio y el domicilio cambian, y hay que acordarse de actualizarlos en cada lugar (chat, catálogo, hoja, publicación).
+- No hay forma rápida de saber qué pedidos están pagados, cuáles faltan por pagar y cuáles ya se entregaron.
+- Las garantías se pierden: nadie sabe qué producto se cambió, cuándo, ni si ya venció el plazo.
+- Con el tiempo no se sabe cuánto se vende, qué margen queda, ni qué clientes dejaron de comprar.
+
+Lo que hace falta es **un solo lugar donde viven los productos, los precios, los pedidos y las garantías**, y que todo lo demás (la página, las alertas, los reportes) lea de ahí.
+
+## 2. Qué es la solución
+
+Es un sistema pequeño, sin servidor propio, con estas piezas:
+
+| Pieza | Herramienta | Qué hace |
 |---|---|---|
-| Página de pedidos | HTML, CSS y JavaScript sin frameworks | Lo que ve el cliente. No guarda precios. |
-| Base de datos | Supabase (Postgres) | Productos, clientes, pedidos, domicilios, códigos, garantías. Fuente única de verdad. |
-| Lógica de pedido | Función SQL `crear_pedido` | Valida, calcula precios y domicilio en la base, guarda todo en una transacción. |
-| Publicación de la página | GitHub + Netlify | El código va a GitHub. Cada `push` a la rama principal publica la página. |
-| Funciones | Edge Functions de Supabase (Deno) | Alerta de pedidos, botones de Telegram, webhook de Shopify. |
-| Alertas y confirmación | Bot de Telegram | Avisa cada pedido con botón 💰 Pagado y 📦 Entregado. Garantías con 🛡️ y ✅. |
-| Tienda en línea (opcional) | Shopify + webhooks | Los pedidos y pagos de Shopify entran a la misma base. |
-| Respuestas | WhatsApp Business (app) | Bienvenida, ausencia y respuestas rápidas. Sin API oficial. |
-| Reportes | Vistas SQL, Power BI | Ventas, costo, margen, clientes sin compra. |
+| Página de pedidos | HTML, CSS y JavaScript en un solo archivo | Lo que ve el cliente: catálogo, opciones, domicilio, forma de pago. No guarda precios. |
+| Base de datos | Supabase (Postgres) | Productos, costos, clientes, pedidos, domicilios, garantías. Es la fuente única de verdad. |
+| Lógica del pedido | Función SQL `crear_pedido` | Valida todo, calcula precio y domicilio, y guarda el pedido con su número (INZ-1000, INZ-1001…). |
+| Publicación | GitHub + Netlify | El código de la página vive en GitHub. Cada cambio aprobado se publica solo. |
+| Funciones | Edge Functions de Supabase | Pequeños programas que avisan pedidos, reciben botones de Telegram y reciben pedidos de Shopify. |
+| Alertas y confirmación | Bot de Telegram | Avisa cada pedido con un botón 💰 Pagado. Al entregar, 📦 Entregado. Las garantías tienen 🛡️ y ✅ Resuelta. |
+| Tienda en línea (opcional) | Shopify con webhooks | Los pedidos y pagos de Shopify entran a la misma base que los de la página. |
+| Respuestas | WhatsApp Business (app) | Bienvenida, ausencia y respuestas rápidas. No usa API oficial. |
+| Reportes | Vistas SQL y Power BI | Ventas, costo, margen y clientes sin compra. |
 
-## Método, en orden
-1. **Entender el negocio.** Productos, precios, formas de pago, zonas de domicilio, garantía, horarios, dirección que se publica (y cuál no). Escribir las reglas antes de tocar código.
-2. **Modelar la base.** Tablas: productos (con `costo` privado y `opciones` en JSON), clientes, pedidos, detalle de pedido (copiar nombre y precio al momento de la venta), domicilios por zona, códigos de descuento, intentos de envío (anti-spam), garantías, contactos de Telegram.
-3. **Crear la función de pedido.** Toda la lógica de precios, domicilio, validación y descuento va en la base. El navegador nunca decide un precio.
-4. **Seguridad desde el inicio.** Ver la lista de seguridad abajo.
-5. **Construir la página.** Lee productos y zonas de la base. Muestra opciones obligatorias (color, modelo). Al enviar, llama a la función; si la base no responde en unos segundos, abre WhatsApp igual con el pedido en texto.
-6. **Alertas y botones.** Un disparador en `pedidos` llama a la función de alerta. Otra función recibe los botones de Telegram. Confirmar pago = ya pagó, no "ya entregó". Entregar es un botón aparte.
-7. **Garantías.** Comandos `/garantias` y `/garantia INZ-xxxx`. Plazo configurable (ejemplo: 12 días). Cada garantía tiene su botón ✅ Resuelta.
-8. **Integrar Shopify (si aplica).** Webhooks `orders/create` y `orders/paid` a una función. Validar el token de la URL y el dominio de la tienda. Responder 200 aunque falle el guardado, para que Shopify no reintente sin fin, y dejar el error en los registros.
-9. **Probar sin ensuciar la base real.** Ver la sección de pruebas.
-10. **Publicar una sola vez por tanda de cambios.** Cada `push` a la rama principal publica la página en Netlify.
-11. **Entregar al dueño.** Explicar cómo ver tablas, cambiar precios, confirmar pedidos, registrar garantías y exportar CSV.
+### Cómo fluye un pedido
 
-## Lista de seguridad (obligatoria)
-- Activar RLS en todas las tablas. Sin políticas, el público no lee ni escribe.
-- Quitar al rol público (`anon`) todos los permisos por defecto.
-- Permitir al público solo: leer una vista de productos **sin columna de costo**, leer zonas activas, y ejecutar la función de pedido.
-- Vistas: no usar `security definer` para lecturas públicas. Usar `security_invoker = true` y dar permisos de columna explícitos.
-- Funciones con `security definer`: fijar `search_path`, validar todo dentro, y quitar `execute` a `anon` y `authenticated` si solo las usa el sistema (disparadores, webhooks). El asesor de Supabase lo marca.
-- **Ninguna clave dentro del código ni en el repositorio.** Esto incluye tokens de bots, claves de webhooks y tokens de URL. Van en los secretos de Supabase (Edge Functions → Secrets).
-- La clave pública va en la página; la clave de servicio solo en funciones del servidor.
-- Campo trampa y límite de envíos por celular para frenar spam.
-- Autorización de datos: casilla obligatoria, fecha y hora guardadas.
+```
+Cliente → Página (Netlify)
+            → crear_pedido (Supabase: valida, calcula, guarda, da número INZ)
+                → disparador en la tabla pedidos
+                    → función de alerta → Telegram (mensaje con botón 💰 Pagado)
+                        → dueña toca Pagado
+                            → función de botones → pedido confirmado + aviso a todos
+                                → dueña toca Entregado → pedido cerrado
+Shopify → función de Shopify → mismas tablas (pagado o pendiente)
+Garantía → /garantia INZ-xxxx en Telegram → registro → ✅ Resuelta
+```
 
-## Despliegue de funciones (no es automático desde GitHub)
-- El código de las funciones se guarda en el repositorio como respaldo (`supabase/functions/<nombre>/index.ts` y un README), pero **Supabase no se actualiza solo**. Cada cambio hay que desplegarlo.
-- Orden seguro al cambiar una clave:
+## 3. Principios del método
+
+1. **Una sola fuente de verdad.** Los precios y domicilios viven solo en la base. La página y el bot los leen. Nunca se escriben en dos lugares.
+2. **El navegador no decide precios.** Toda la validación y el cálculo ocurren en la base, dentro de la función del pedido. Así nadie puede alterar un precio desde la página.
+3. **Lo que es privado no se publica.** El costo de cada producto no sale a ningún cliente. La dirección de la casa de la dueña no aparece nunca en la página.
+4. **Confirmar pago y confirmar entrega son acciones distintas.** "Pagado" significa que ya pagó. "Entregado" significa que ya se entregó. No se mezclan.
+5. **Ninguna clave dentro del código.** Tokens de bots, claves de webhooks y tokens de URL van en los secretos de Supabase, nunca en el repositorio ni en el chat.
+6. **Si algo falla, el cliente no se queda sin pedido.** Si la base no responde en unos segundos, la página abre WhatsApp con el pedido escrito en texto.
+7. **Cambios pequeños, publicados de una vez.** Cada `push` a la rama principal publica la página. Se juntan los cambios y se publica una vez.
+
+## 4. Cómo se construye, paso a paso
+
+### Paso 1. Entender el negocio (antes de tocar código)
+- **Qué se hace:** listar productos, precios, costos, formas de pago, zonas de domicilio, política de garantía, horario, y qué dirección se publica (en retiro en tienda, nunca la de la casa).
+- **Por qué:** casi todos los errores vienen de reglas que nadie escribió. Escribirlas primero evita rehacer la base.
+- **Entregable:** un documento corto con las reglas, que la dueña confirma.
+
+### Paso 2. Modelar la base de datos
+- **Qué se hace:** crear tablas para productos (con `costo` privado y `opciones` en JSON para color o modelo), clientes, pedidos, detalle del pedido, domicilios por zona, códigos de descuento, intentos de envío, garantías y contactos de Telegram.
+- **Por qué:** el detalle del pedido copia el nombre y el precio **del momento de la venta**. Si después cambia el precio, los pedidos viejos no cambian.
+- **Entregable:** las migraciones SQL guardadas en el repositorio.
+
+### Paso 3. Crear la función de pedido
+- **Qué se hace:** una función SQL `crear_pedido` que recibe los datos del cliente y los productos, revisa que todo sea válido, calcula el total y el domicilio, aplica el descuento si hay código, y guarda todo en una sola transacción.
+- **Por qué:** si la validación está en la base, la página puede fallar o cambiar sin romper las reglas.
+- **Incluye:** límite de envíos por celular (anti-spam), campo trampa oculto (un campo que solo llenan los robots), y casilla de autorización de datos guardada con fecha y hora.
+
+### Paso 4. Construir la página
+- **Qué se hace:** una sola página HTML. Lee productos y zonas de la base con la clave pública. Muestra las opciones obligatorias, el total en vivo y la forma de pago. Al enviar, llama a `crear_pedido` y muestra el número INZ.
+- **Por qué:** una sola página es rápida, barata de publicar y fácil de cambiar.
+- **Detalle importante:** si la base no responde en unos segundos, se abre WhatsApp con el pedido en texto y el cliente no se queda sin comprar.
+
+### Paso 5. Seguridad (antes de conectar nada más)
+- **Qué se hace:**
+  - RLS activo en todas las tablas. Sin políticas, el público no lee ni escribe.
+  - Quitar al rol público todos los permisos por defecto.
+  - Permitir al público solo: leer productos **sin costo**, leer zonas activas y ejecutar `crear_pedido`.
+  - Vistas públicas con `security_invoker`, nunca `security definer`.
+  - Funciones que solo usa el sistema (disparadores, webhooks) sin permiso para `anon` ni `authenticated`.
+- **Por qué:** es más fácil cerrar desde el inicio que arreglar después de que la página ya está pública.
+- **Cómo se verifica:** el asesor de seguridad de Supabase, y una llamada sin clave debe responder 401.
+
+### Paso 6. Alertas y confirmación por Telegram
+- **Qué se hace:** un disparador en la tabla de pedidos llama a una función que manda el resumen del pedido a cada chat registrado, con botón 💰 Pagado. Otra función recibe los botones y cambia el estado.
+- **Por qué:** la dueña se entera al instante, sin abrir un panel, y confirma desde el mismo teléfono.
+- **Reglas:** solo los chats registrados pueden tocar botones. El chat que se usa es el de la persona, no el del bot (el bot no puede escribirse a sí mismo).
+
+### Paso 7. Garantías
+- **Qué se hace:** tabla de garantías ligada al pedido. Comandos `/garantias` (ver abiertas) y `/garantia INZ-xxxx` (registrar). Cada garantía tiene su botón ✅ Resuelta. Se avisa si pasa el plazo (por ejemplo, 12 días).
+- **Por qué:** sin registro, las garantías se pierden y no se sabe qué producto falló más.
+
+### Paso 8. Integrar Shopify (si el negocio también vende ahí)
+- **Qué se hace:** webhooks de Shopify para `orders/create` y `orders/paid` apuntan a una función. La función revisa el token de la URL y el dominio de la tienda, y guarda el pedido con las mismas funciones de la base.
+- **Por qué:** un solo lugar para todos los pedidos, sin copiar a mano desde Shopify.
+- **Regla:** la función responde 200 aunque falle el guardado, para que Shopify no reintente sin fin, y deja el error en los registros.
+
+### Paso 9. Publicar y desplegar
+- **Qué se hace:**
+  - La página: `push` a la rama principal de GitHub. Netlify la publica sola.
+  - Las funciones: Supabase **no** las actualiza desde GitHub. Se despliegan a mano (con el asistente o el panel). El código de cada función vive en el repositorio como respaldo.
+- **Orden seguro al cambiar una clave:**
   1. Crear o cambiar el secreto en Supabase.
-  2. Desplegar la función nueva (que lee el secreto del entorno).
-  3. Si es un webhook de Telegram, registrarlo de nuevo.
-  4. Si es un webhook de Shopify, cambiar la URL en Shopify (la clave va en el parámetro `token`).
-  5. Probar con un pedido de prueba y borrarlo al terminar.
-- Si el panel de secretos no deja guardar (el asistente puede estar en pausa), se agrega a mano en **Edge Functions → Secrets**. No es un fallo del sistema.
-- Desplegar **antes** de cambiar la clave en el servicio externo, o el sistema deja de recibir avisos durante el cambio.
+  2. Desplegar la función que lee el secreto del entorno.
+  3. Si es Telegram, registrar el webhook de nuevo.
+  4. Si es Shopify, cambiar la URL en Shopify.
+  5. Probar con un pedido de prueba y borrarlo.
+- **Por qué este orden:** si cambias la clave en el servicio antes de desplegar, los avisos dejan de llegar.
 
-## Pruebas sin ensuciar la base real
-- No probar contra la base de producción sin aislar la escritura. Interceptar en el navegador todas las llamadas que no sean GET, con una sola regla para todo el tráfico, para que nunca lleguen a la base.
-- Probar la base en una instancia local de Postgres con los mismos roles (`anon`, `authenticated`, `service_role`) y el mismo SQL.
-- Pruebas mínimas: pedido válido con total correcto, cada error de validación, límite de envíos, campo trampa, cliente repetido sin perder datos, permisos del público, cancelación a las 48 horas, garantía registrada y resuelta.
-- Si se hace un pedido real de prueba, anotar el número y borrar pedido, detalle, cliente, intentos y garantías juntos al terminar.
-- Verificar que una llamada sin clave responda 401: confirma que la protección está activa.
+### Paso 10. Probar sin ensuciar la base real
+- **Qué se hace:** interceptar en el navegador todas las llamadas que no sean de lectura, con una sola regla para todo el tráfico. Probar la base en una instancia local de Postgres con los mismos roles.
+- **Pruebas mínimas:** pedido válido con total correcto, cada error de validación, límite de envíos, campo trampa, cliente repetido sin perder datos, permisos del público, cancelación a las 48 horas, garantía registrada y resuelta, llamada sin clave responde 401.
+- **Si se hace un pedido real de prueba:** anotar el número y borrar pedido, detalle, cliente, intentos y garantías juntos.
 
-## Errores que nos pasaron (y cómo evitarlos)
-- **Un intercept de Playwright mal ordenado dejó escribir en producción.** Usar una sola regla para todo el tráfico, no varias.
-- **Telegram responde 403 "bot can't send messages to the bot":** el `chat_id` era el del propio bot. Usar el id del usuario humano (chat privado con el bot).
-- **Telegram rechaza el webhook con "HTTPS URL must be provided":** la función no debe tomar su URL de la petición interna. Escribir la URL pública fija.
-- **Una clave quedó escrita en el código de la función.** Se rota, se mueve a secretos y se redespliega. Revisar también el código que ya está en la nube, no solo el del repositorio.
-- **Vista pública marcada como error por el asesor de seguridad:** cambiarla a `security_invoker` y dar permisos por columna.
-- **Netlify omitió un despliegue por falta de créditos:** un proyecto dentro de una cuenta gratuita compartida puede quedar pausado. Revisar créditos antes de entregar.
-- **Formularios de Netlify sin detectar:** se activa la detección y hay que volver a desplegar una vez para que la detecte.
-- **Demasiados despliegues:** juntar cambios y publicar una sola vez.
-- **Un pedido de prueba quedó como real.** Probar siempre contra la base aislada, y nunca dejar pedidos de prueba en producción.
-- **Un cambio de clave en Shopify deja pedidos sin entrar** hasta que se actualiza la URL. Hacer el cambio de una vez, con el dueño presente.
+### Paso 11. Entregar y operar
+- **Qué se le enseña a la dueña:** dónde ver las tablas, cómo cambiar un precio, cómo confirmar pago y entrega, cómo registrar y cerrar una garantía, cómo exportar CSV para Power BI.
+- **Qué revisar cada semana:** pedidos pendientes, costos sin llenar, garantías abiertas, créditos del hosting.
 
-## Qué entregar al dueño
-- Enlace de la página y del panel de la base (solo lectura para él).
-- Cómo cambiar un precio en la tabla de productos.
-- Cómo confirmar un pedido (botón de Telegram) y que confirmar significa que ya pagó.
-- Cómo registrar y cerrar una garantía (`/garantia` y ✅ Resuelta).
-- Cómo exportar a CSV para Power BI.
-- Qué revisar cada semana: pedidos pendientes, costos sin llenar, garantías abiertas, créditos del hosting.
+## 5. Errores que nos pasaron (y la lección)
 
-## Lo que el dueño debe decidir o aportar
+- **Un intercept de Playwright mal ordenado dejó escribir en producción.** Lección: una sola regla para todo el tráfico de pruebas.
+- **Telegram respondió 403 "bot can't send messages to the bot".** Lección: el `chat_id` debe ser el de la persona, no el del bot.
+- **Telegram rechazó el webhook con "HTTPS URL must be provided".** Lección: la URL pública va escrita fija en el código.
+- **Una clave quedó escrita dentro de la función desplegada.** Lección: revisar también el código que ya está en la nube, no solo el del repositorio, y mover toda clave a secretos.
+- **Vista pública marcada como error por el asesor de seguridad.** Lección: `security_invoker` y permisos por columna.
+- **Netlify omitió un despliegue por falta de créditos.** Lección: revisar créditos antes de entregar.
+- **Pedidos de prueba quedaron como reales.** Lección: probar contra base aislada, y borrar lo que se crea.
+- **Un cambio de clave en Shopify dejó pedidos sin entrar hasta actualizar la URL.** Lección: cambiar la clave y la URL en el mismo momento, con el dueño presente.
+
+## 6. Lo que el dueño decide o aporta
+
 - Productos, precios y costos. Sin costos, el margen sale mal.
 - Zonas de domicilio y montos.
 - Formas de pago y llaves de cuenta.
-- Política de garantía y de privacidad. Revisar la de privacidad con un abogado.
-- Quién tiene acceso a las cuentas (base, hosting, bot, tienda).
-- Qué dirección se publica (en retiro en tienda, no publicar la dirección de la casa).
+- Política de garantía y de privacidad (la de privacidad, revisada por un abogado).
+- Qué dirección se publica.
+- Quién tiene acceso a la base, al hosting, al bot y a la tienda.
