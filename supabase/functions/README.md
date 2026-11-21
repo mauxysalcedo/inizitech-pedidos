@@ -12,6 +12,8 @@ El código de este repositorio es la copia de respaldo. **Supabase no se actuali
 | `shopify-pedidos/` | Recibe los pedidos y pagos de la tienda Shopify | Shopify (webhooks `orders/create` y `orders/paid`) |
 | `cumpleanos-diario/` | Avisa por Telegram quién cumple años hoy, con un botón que abre WhatsApp con el saludo escrito | Tarea programada `recordatorio-cumpleanos` en la base, todos los días a las 7:00 a. m. (hora de Colombia) |
 
+| `recordatorio-pendientes/` | Avisa por Telegram los pedidos que siguen sin pagar, con el botón 💰 Pagado, para que no se cancelen solos a las 48 horas | Tarea programada `recordatorio-pendientes` en la base, todos los días a las 7:05 a. m. (hora de Colombia) |
+
 `cumpleanos-diario` solo actúa entre las 7:00 y las 9:59 a. m. de Colombia, solo envía una vez por día (tabla `recordatorios_enviados`) y no devuelve datos de clientes. Solo usa clientes que autorizaron el tratamiento de datos. Su migración está en `supabase/migrations/20261121000000_recordatorio_cumpleanos.sql`.
 
 ## Secretos (nunca en el código)
